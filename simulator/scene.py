@@ -5,8 +5,8 @@ from typing import List, TypeVar, Generic
 T = TypeVar('T')
 class KineticMesh(RawMeshFromFile):
 
-    @staticmethod
-    def states_default():
+    @classmethod
+    def states_default(cls):
         '''
         change these two methods to define mesh path, states and their default values
         '''
@@ -20,8 +20,8 @@ class KineticMesh(RawMeshFromFile):
             "I0": np.identity(3)
         }
 
-    @staticmethod
-    def mesh_path_default():
+    @classmethod
+    def mesh_path_default(cls):
         return {
             "file": "assets/stanford-bunny.obj",
             "folder": "",

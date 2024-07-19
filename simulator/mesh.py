@@ -9,7 +9,7 @@ class RawMeshFromFile:
     '''
     load mesh from file. 
     Supported formats: obj, usd, bgeo
-    return format: V (n x 3), F (m x 3)
+    return format: (#V x 3), (#F x 3)
     '''
     @staticmethod
     def load_usd_mesh(filename, usd_path):

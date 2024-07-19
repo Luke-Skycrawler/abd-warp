@@ -1,6 +1,7 @@
 from scene import KineticMesh, Scene
 import json
 import os
+import numpy as np
 import pyHouGeoIO as hou
 
 class BaseSimulator:
@@ -26,7 +27,7 @@ class BaseSimulator:
         }
 
 
-    def __init__(self, config_file = "config.json"):
+    def __init__(self, config_file = "config.json", member_type = KineticMesh):
         sim_args = self.simulator_args()
 
         with open(config_file) as f:
@@ -37,7 +38,7 @@ class BaseSimulator:
                 setattr(self, key, value)
 
         scene_config = config["scene"]
-        self.scene = Scene(scene_config)
+        self.scene = Scene(member_type=member_type, config_file = scene_config)
 
         
     @classmethod
@@ -66,5 +67,11 @@ class BaseSimulator:
         '''
         
         pass
+
+    # supporting functions 
+    def gather(self, fieldname):
+        return np.array([getattr(ko, fieldname) for ko in self.scene.kinetic_objects])
+        
+
 
     
