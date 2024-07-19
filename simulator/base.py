@@ -10,8 +10,8 @@ class BaseSimulator:
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-    @staticmethod
-    def simulator_args():
+    @classmethod
+    def simulator_args(cls):
         '''
         change this method to define simulator arguments and default values (values can be overwritten by config file)
         '''
@@ -40,8 +40,8 @@ class BaseSimulator:
         self.scene = Scene(scene_config)
 
         
-    @staticmethod
-    def bgeo_object_attributes():
+    @classmethod
+    def bgeo_object_attributes(cls):
         '''
         change this method to define bgeo attributes and their default values
         '''
@@ -57,7 +57,7 @@ class BaseSimulator:
         '''
         load bgeo file to initialize the scene
         '''
-        for key, type in self.bgeo_attributes().items():
+        for key, type in self.bgeo_object_attributes().items():
             setattr(self, key, )
 
     def export_frame(self):

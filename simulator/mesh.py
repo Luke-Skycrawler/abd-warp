@@ -55,5 +55,5 @@ class RawMeshFromFile:
 if __name__ == "__main__":
     files = ["box.bgeo", "box.obj", "cube.usda"]
     for file in files:
-        raw_mesh = RawMeshFromFile(file, "../assets/")
+        raw_mesh = RawMeshFromFile(file, "assets/")
         print(file, raw_mesh.V.shape, raw_mesh.F.shape)
