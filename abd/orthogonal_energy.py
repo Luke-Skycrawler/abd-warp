@@ -6,15 +6,34 @@ from warp.sparse import bsr_set_from_triplets, bsr_zeros
 class InertialEnergy:
     def __init__(self):
         pass
-    def energy(self, inputs):
-        A, p, scene_objects = inputs
-        scene_objects
     
-    def gradient(self, inputs):
-        A, p = inputs
+    def energy(self, e, states):
+        wp.launch(energy_inertia, 1, inputs = [states, e])
+    
+    def gradient(self, g, states):
+        wp.launch(flattened_gradient_inertia, 1, inputs = [g, states])
 
-    def hessian(self, inputs):
-        A, p = inputs
+    def hessian(self, bsr, states):
+        wp.launch(bsr_hessian_inertia, 1, inputs = [bsr, states])
+
+@wp.kernel
+def energy_inertia(states: AffineBodyStates, e: wp.array(dtype = float)):
+    i = wp.tid()
+    A_tilde = tildeA(states.A0[i], states.Adot[i])
+    p_tilde = tildep(states.p0[i], states.pdot[i])
+    
+    dqTMdq = norm_M(states.A[i], states.p[i], A_tilde, p_tilde)
+    de = energy_ortho(states.A[i]) * dt * dt + 0.5 * dqTMdq
+    wp.atomic_add(e, 0, de)
+
+@wp.kernel
+def norm_M(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3) -> float:
+    dq0 = p - p_tilde
+    dq1 = A[0] - A_tilde[0]
+    dq2 = A[1] - A_tilde[1]
+    dq3 = A[2] - A_tilde[2]
+
+    return wp.dot(dq0, dq0) * mass + (wp.dot(dq1, dq1) + wp.dot(dq2, dq2) + wp.dot(dq3, dq3)) * I0
 
 
 @wp.func
@@ -80,7 +99,7 @@ def flattened_gradient_inertia(g: wp.array(dtype = wp.vec3), states: AffineBodyS
 
     A_tilde = tildeA(states.A0[i], states.Adot[i])
     p_tilde = tildep(states.p0[i], states.pdot[i])
-    q0, q1, q2, q3 = norm_M(states.A[i], states.p[i], A_tilde, p_tilde)
+    q0, q1, q2, q3 = Mdq(states.A[i], states.p[i], A_tilde, p_tilde)
 
     g[0 + i * 4] = g[0 + i * 4] + q0
     g[1 + i * 4] = g[1 + i * 4] + q1
@@ -94,7 +113,7 @@ def _init(states: AffineBodyStates):
     states.A0[0] = wp.diag(wp.vec3(1.0))
 
 @wp.func
-def norm_M(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3):
+def Mdq(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3):
     q0 = p - p_tilde
     q1 = A[0] - A_tilde[0]
     q2 = A[1] - A_tilde[1]

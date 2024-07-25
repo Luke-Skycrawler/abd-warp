@@ -39,6 +39,7 @@ def affine_body_states_empty(n_bodies):
 class AffineBody:
     x0: wp.array(dtype = wp.vec3)       # rest shape
     x: wp.array(dtype = wp.vec3)        # current position
+    x_view: wp.array(dtype = wp.vec3)   # view position
     
     triangles: wp.array2d(dtype = int)  # triangle indices
     edges: wp.array2d(dtype = int)      # edge indices
@@ -65,6 +66,7 @@ class AffineMesh(KineticMesh):
         ab = AffineBody()
         ab.x0 = wp.zeros(self.V.shape[0], dtype = wp.vec3)
         ab.x = wp.zeros_like(ab.x0)
+        ab.x_view = wp.zeros_like(ab.x0)
 
         ab.triangles = wp.zeros(self.F.shape, dtype = int)
         ab.triangles.assign(self.F)
@@ -72,6 +74,10 @@ class AffineMesh(KineticMesh):
         edges = igl.edges(self.F)
         ab.edges = wp.zeros(edges.shape, dtype = int)
         ab.edges.assign(edges)
+
+        ab.x0.assign(self.V)
+        ab.x.assign(self.V)
+        ab.x_view.assign(self.V)
 
         return ab
 

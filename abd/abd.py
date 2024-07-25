@@ -23,10 +23,10 @@ class AffineBodySimulator(BaseSimulator):
 
         self.states = affine_body_states_empty(n_bodies)
 
-        self.states.A0.assign(self.states.gather("A"))
-        self.states.p0.assign(self.states.gather("p"))
-        self.states.pdot.assign(self.states.gather("pdot"))
-        self.states.Adot.assign(self.states.gather("Adot"))
+        self.states.A0.assign(self.gather("A"))
+        self.states.p0.assign(self.gather("p"))
+        self.states.pdot.assign(self.gather("pdot"))
+        self.states.Adot.assign(self.gather("Adot"))
 
 
 
@@ -38,7 +38,7 @@ class AffineBodySimulator(BaseSimulator):
 
 
         self.dq = wp.zeros((n_bodies, 12), dtype = float)
-        self.r = wp.zeros((n_bodies, 12), dtype = float)
+        self.g = wp.zeros((n_bodies, 12), dtype = float)
 
 
         self.pt_body_index = wp.zeros((self.collision_cap, 2), dtype = int)
@@ -53,19 +53,8 @@ class AffineBodySimulator(BaseSimulator):
         
 
 
-
-
-
-
-        
-
-
-        self.rows = np.zeros()
-        
-
-        
-
-        self.affine_bodies = wp.array([ko.warp_affine_body() for ko in self.scene.kinetic_objects], dtype = AffineBody)
+        # self.affine_bodies = wp.array([ko.warp_affine_body() for ko in self.scene.kinetic_objects], dtype = AffineBody)
+        self.affine_bodies = [ko.warp_affine_body() for ko in self.scene.kinetic_objects]
 
     @classmethod
     def simulator_args(cls):
@@ -115,5 +104,29 @@ class AffineBodySimulator(BaseSimulator):
 
         while True:
             pass
+    
+    def init(self):
+        pass
+
+if __name__ == "__main__":
+    import polyscope as ps
+    wp.init()
+    sim = AffineBodySimulator(config_file = "config.json")
+    sim.init()
+    ps.init()
+    ps_meshes = []
+    for i, body in enumerate(sim.scene.kinetic_objects):
+        ps_meshes.append(ps.register_surface_mesh(f"body{i}", body.V, body.F))
+    
+    
+    bodies = sim.scene.kinetic_objects
+    while(True):
+        affine_bodies_np = sim.affine_bodies
+        for ab, viewer_mesh in zip(affine_bodies_np, ps_meshes):
+            viewer_mesh.update_vertex_positions(ab.x_view.numpy())    
+            
+        ps.frame_tick()
+        
+        
         
 
