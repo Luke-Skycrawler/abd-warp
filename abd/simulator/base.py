@@ -1,4 +1,4 @@
-from scene import KineticMesh, Scene
+from .scene import KineticMesh, Scene
 import json
 import os
 import numpy as np

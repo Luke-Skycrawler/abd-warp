@@ -1,4 +1,4 @@
-from mesh import RawMeshFromFile
+from .mesh import RawMeshFromFile
 import numpy as np
 import json
 from typing import List, TypeVar, Generic

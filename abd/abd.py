@@ -1,7 +1,8 @@
 from const_params import *
 from simulator.base import BaseSimulator
-from affine_body import AffineBody, AffineMesh
+from affine_body import AffineBody, AffineMesh, AffineBodyStates, affine_body_states_empty
 from warp.utils import array_inner
+
 
 
 class AffineBodySimulator(BaseSimulator):
@@ -17,22 +18,17 @@ class AffineBodySimulator(BaseSimulator):
         # A, p, Adot, pdot flattened together
         # while mesh information is stored in AffineBody struct
 
-        self.A = wp.zeros(n_bodies, dtype = wp.mat33)
-        self.p = wp.zeros(n_bodies, dtype = wp.vec3)
+        # A[0], A[1], A[2] are the degrees of freedom
+        # to project a vertice, use A.T @ x + p
 
-        self.Ak = wp.zeros_like(self.A)
-        self.pk = wp.zeros_like(self.p)
+        self.states = affine_body_states_empty(n_bodies)
 
-        self.A0 = wp.zeros_like(self.A)
-        self.p0 = wp.zeros_like(self.p)
+        self.states.A0.assign(self.states.gather("A"))
+        self.states.p0.assign(self.states.gather("p"))
+        self.states.pdot.assign(self.states.gather("pdot"))
+        self.states.Adot.assign(self.states.gather("Adot"))
 
-        self.Adot = wp.zeros_like(self.A)
-        self.pdot = wp.zeros_like(self.p)
 
-        self.A0.assign(self.gather("A"))
-        self.p0.assign(self.gather("p"))
-        self.pdot.assign(self.gather("pdot"))
-        self.Adot.assign(self.gather("Adot"))
 
         self.energy = wp.zeros(2, dtype = float)
         self.alpha = wp.zeros(1, dtype = float)
@@ -118,6 +114,6 @@ class AffineBodySimulator(BaseSimulator):
         self.proximity_set()
 
         while True:
-
+            pass
         
 

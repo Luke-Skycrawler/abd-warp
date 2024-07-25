@@ -1,7 +1,39 @@
 from simulator.base import BaseSimulator
 from simulator.scene import KineticMesh, Scene
-from abd.const_params import *
+from const_params import *
 import igl
+
+@wp.struct
+class AffineBodyStates:
+    A: wp.array(dtype = wp.mat33)
+    p: wp.array(dtype = wp.vec3)
+    
+    Ak: wp.array(dtype = wp.mat33)
+    pk: wp.array(dtype = wp.vec3)
+    
+    Adot: wp.array(dtype = wp.mat33)
+    pdot: wp.array(dtype = wp.vec3)
+
+    A0: wp.array(dtype = wp.mat33)
+    p0: wp.array(dtype = wp.vec3)
+
+def affine_body_states_empty(n_bodies):
+    
+    states = AffineBodyStates()
+
+    states.A = wp.zeros(n_bodies, dtype = wp.mat33)
+    states.p = wp.zeros(n_bodies, dtype = wp.vec3)
+
+    states.Ak = wp.zeros_like(states.A)
+    states.pk = wp.zeros_like(states.p)
+
+    states.A0 = wp.zeros_like(states.A)
+    states.p0 = wp.zeros_like(states.p)
+
+    states.Adot = wp.zeros_like(states.A)
+    states.pdot = wp.zeros_like(states.p)
+
+    return states
 
 @wp.struct
 class AffineBody:

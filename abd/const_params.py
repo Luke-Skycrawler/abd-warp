@@ -13,3 +13,6 @@ stiffness = 1e7
 c1 = 1e-4
 gravity = -9.8
 
+
+mass = 1.0
+I0 = 0.4
