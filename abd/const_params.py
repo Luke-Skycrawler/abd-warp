@@ -8,11 +8,12 @@ dt = 0.01
 dhat = 1e-3
 max_iter = 100
 tol = 1e-4
-kappa = 1e7
+kappa = 1e9
 stiffness = 1e7
 c1 = 1e-4
-gravity = -9.8
+# gravity = -9.8
+gravity = wp.constant(-0.0)
 
 
-mass = 1.0
-I0 = 0.4
+mass = 1e4
+I0 = 4e4
