@@ -1,1 +1,4 @@
 assets/
+*.pyc
+imgui.ini
+.polyscope.ini

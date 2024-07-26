@@ -1,8 +1,9 @@
-from scene import KineticMesh, Scene
+from .scene import KineticMesh, Scene
 import json
 import os
 import numpy as np
 import pyHouGeoIO as hou
+import polyscope as ps
 
 class BaseSimulator:
 
@@ -38,7 +39,7 @@ class BaseSimulator:
                 setattr(self, key, value)
 
         scene_config = config["scene"]
-        self.scene = Scene(member_type=member_type, config_file = scene_config)
+        self.scene = Scene(member_type=member_type, scene_config_file = scene_config)
 
         
     @classmethod
@@ -72,6 +73,5 @@ class BaseSimulator:
     def gather(self, fieldname):
         return np.array([getattr(ko, fieldname) for ko in self.scene.kinetic_objects])
         
-
-
+    
     
