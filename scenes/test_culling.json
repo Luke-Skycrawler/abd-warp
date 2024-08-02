@@ -2,7 +2,8 @@
     "objects": [
         {
             "file": "box.bgeo",
-            "folder": "assets/"
+            "folder": "assets/",
+            "p": [0.5, 0.5, 0.5]
         },
         {
             "file": "box.bgeo",

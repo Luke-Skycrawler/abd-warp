@@ -102,26 +102,36 @@ class ListMeta:
     volume_per_thread: int
     volume_overflow: int
     count_overflow: wp.array(dtype = int)
+    compressed_size: wp.array(dtype = int)
 
 def list_with_meta(dtype, list_size, n_threads, volume_per_thread):
+    '''
+    returns a list of size list_size and metadata 
+    volume_per_thread * n_threads space will be allocated for thread-local storage  
+    the rest will be used for the overflow
+    '''
     meta = ListMeta()
     list = wp.zeros(list_size, dtype = dtype)
     meta.count = wp.zeros(n_threads, dtype = int)
     meta.volume_per_thread = volume_per_thread
     meta.volume_overflow = list_size - volume_per_thread * n_threads
+    meta.compressed_size = wp.zeros(1, dtype = int)
     assert(meta.volume_per_thread >= 0)
     return list, meta
-    
-@wp.func
-def insert(tid: int, meta: ListMeta, item: Any, a: wp.array(dtype = Any)):
-    overflow_offset = meta.volume_per_thread * a.shape[0]
-    if meta.count[tid] < meta.volume_per_thread:
-        a[meta.count[tid]] = item
-        meta.count[tid] += 1
-    else:
-        id = wp.atomic_add(meta.count_overflow, 0, 1)
-        a[overflow_offset + id] = item
 
+def insert_overload(dtype = float):
+        
+    @wp.func
+    def _insert(tid: int, meta: ListMeta, item: dtype, a: wp.array(dtype = dtype)):
+        overflow_offset = meta.volume_per_thread * a.shape[0]
+        if meta.count[tid] < meta.volume_per_thread:
+            a[meta.count[tid]] = type(a[0])(item)
+            meta.count[tid] += 1
+        else:
+            id = wp.atomic_add(meta.count_overflow, 0, 1)
+            a[overflow_offset + id] = type(a[0])(item)
+
+    return _insert
 class WarpList:
     def __init__(self, type, thread_count):
         digits = np.ceil(np.log2(thread_count)).astype(int)
@@ -136,6 +146,9 @@ class WarpList:
         self.meta.count 
         return 
         
+def compress(list, meta):
+    pass
+
 
 class Deleter:
     def __init__(self, digits):

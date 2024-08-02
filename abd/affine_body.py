@@ -65,7 +65,7 @@ class AffineMesh(KineticMesh):
     
     def __init__(self, obj_json):
         super().__init__(obj_json)
-        
+
     def warp_affine_body(self, id):
         ab = AffineBody()
         ab.id = id
@@ -82,7 +82,6 @@ class AffineMesh(KineticMesh):
 
         ab.x0.assign(self.V)
 
-        print(self.V.shape)
         Vt = self.V @ self.A.T + self.p.reshape(1, 3)
         ab.x.assign(Vt)
         ab.x_view.assign(Vt)
