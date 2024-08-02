@@ -7,6 +7,18 @@ from warp.optim.linear import cg, bicgstab
 
 # temp
 from orthogonal_energy import offset
+
+
+class IPCContactEnergy:
+    def __init__(self) -> None:
+        pass
+
+    def gradient(self, inputs):
+        pass
+
+    def hessian(self, inputs):
+        pass
+
 @wp.func
 def barrier(d: float) -> float:
     ret = 0.0
@@ -66,7 +78,8 @@ def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Af
 
 @wp.func
 def ipc_hess(pt: wp.vec2, ij: wp.vec2, pt_type: int, d: float):
-    
+    pass
+
 @wp.kernel
 def ipc_term_pt(pt_list: wp.array(dtype = wp.vec2), ij_list: wp.array(dtype = wp.vec2), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), bsr: BSR, states: AffineBodyStates):
     i = wp.tid()

@@ -3,6 +3,7 @@ import numpy as np
 
 vec12 = wp.types.vector(length=12, dtype=wp.float32)
 mat12 = wp.types.matrix(shape = (12, 12), dtype = wp.float32)
+vec5i = wp.types.vector(length = 5, dtype = wp.int32)
 
 dt = 0.01
 dhat = 1e-3

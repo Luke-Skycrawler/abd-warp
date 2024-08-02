@@ -16,9 +16,8 @@ class InertialEnergy:
         g.zero_()
         wp.launch(flattened_gradient_inertia, states.A.shape, inputs = [g, states])
 
-    def hessian(self, bsr, states):
-        bsr.blocks.zero_()
-        wp.launch(bsr_hessian_inertia, states.A.shape, inputs = [bsr, states])
+    def hessian(self, blocks, states):
+        wp.launch(bsr_hessian_inertia, states.A.shape, inputs = [blocks, states])
 
 @wp.kernel
 def energy_inertia(states: AffineBodyStates, e: wp.array(dtype = float)):
@@ -81,9 +80,10 @@ def offset(i: int, j: int, bsr: BSR) -> int:
     return i * 16
 
 @wp.kernel
-def bsr_hessian_inertia(bsr: BSR, states: AffineBodyStates):
+def bsr_hessian_inertia(blocks: wp.array(dtype = wp.mat33), states: AffineBodyStates):
     i = wp.tid()
-    os = offset(i, i, bsr)
+    # os = offset(i, i, bsr)
+    os = i * 16
     for ii in range(4):
         for jj in range(4):
             m = wp.select(ii == jj, 0.0, wp.select(ii == 0, I0, mass))
@@ -91,7 +91,7 @@ def bsr_hessian_inertia(bsr: BSR, states: AffineBodyStates):
             dh =wp.diag(I)
             if ii > 0 and jj > 0:
                 dh += hessian_ortho(ii - 1, jj - 1, states.A[i]) * dt * dt
-            bsr.blocks[os + ii + jj * 4] += dh
+            blocks[os + ii + jj * 4] += dh
 
 
 @wp.kernel
@@ -132,11 +132,27 @@ def tildep(p0: wp.vec3, pdot: wp.vec3) -> wp.vec3:
     return p0 + dt * pdot + dt * dt * wp.vec3(0.0, gravity, 0.0)
 
 @wp.kernel
-def _set_triplets(rows: wp.array(dtype = int), cols: wp.array(dtype = int)):
-    for i in range(4):
-        for j in range(4):
-            rows[i + j * 4] = i
-            cols[i + j * 4] = j
+def _set_triplets(n_bodies: int, n_ij: int, ij_list: wp.array(dtype = wp.vec2i), rows: wp.array(dtype = int), cols: wp.array(dtype = int)):
+    i = wp.tid()
+    os = i * 16
+
+    I = int(0)
+    J = int(0)
+    if i < n_bodies:
+        # diagonal blocks
+        I = i
+        J = i
+    else:
+        # off-diagonal blocks, upper triangle index range [n_ij, n_ij + n_bodies), lower triangle at [n_ij + n_bodies, n_bodies + 2 n_ij)
+        idx = wp.select(i < n_bodies + n_ij, i - n_bodies - n_ij, i - n_bodies)
+        I = ij_list[idx][0]
+        J = ij_list[idx][1]
+
+    for ii in range(4):
+        for jj in range(4):
+            rows[os + ii + jj  *4] = ii + 4 * I
+            cols[os + ii + jj * 4] = jj + 4 * J
+
 
 
 

@@ -49,10 +49,10 @@ class KineticMesh(RawMeshFromFile):
         for key in states.keys():
             assert(hasattr(self, key))
 
-class Scene(Generic[T]): 
-    def __init__(self, member_type:T = KineticMesh, scene_config_file = "scenes/case1.json"):
+class Scene: 
+    def __init__(self, member_type = KineticMesh, scene_config_file = "scenes/case1.json"):
         print(scene_config_file)
-        self.kinetic_objects: List[T] = []
+        self.kinetic_objects: List[member_type] = []
         with open(scene_config_file) as f:
             scene_config = json.load(f)
 

@@ -2,7 +2,7 @@ import warp as wp
 from affine_body import AffineBody
 from typing import List
 import numpy as np
-from simulator.fenwick import ListMeta, insert
+from simulator.fenwick import ListMeta, insert, list_with_meta
 @wp.kernel
 def bvh_triangles(dialation: float, V: wp.array(dtype = wp.vec3), F: wp.array2d(dtype = int), uppers: wp.array(dtype = wp.vec3), lowers: wp.array(dtype = wp.vec3)):
     tid = wp.tid()
@@ -96,4 +96,22 @@ def intersection_bodies(
         if bj > bi:
             insert(bi, meta, wp.vec2i(bi, bj), list)
 
+
+
+if __name__ == "__main__":
+    from abd.abd import AffineBodySimulator
+    wp.init()
+    sim = AffineBodySimulator(config_file = "config.json")
+    sim.init()
     
+    bodies = sim.scene.kinetic_objects
+    affine_bodies = sim.affine_bodies
+
+    n_bodies = len(affine_bodies)
+
+    bb = BvhBuilder()
+    body_lowers, body_uppers, bvh_bodies = bb.build_body_bvh()
+    ij_list, ij_meta = list_with_meta(wp.vec2i, 4, 1, 4)
+    wp.launch(intersection_bodies, n_bodies, inputs = [bvh_bodies, body_lowers, body_uppers, ij_meta, ij_list])
+    
+    print(ij_list.numpy())

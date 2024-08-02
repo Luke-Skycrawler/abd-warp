@@ -1,5 +1,6 @@
 import warp as wp
 import numpy as np 
+from typing import Any
 
 @wp.func
 def digit(i: int, d: int) -> int:
@@ -95,8 +96,6 @@ def _compress(prefix_deleted: wp.array1d(dtype = int), a: wp.array1d(dtype = int
         b[i - prefix_deleted[i]] = a[i]
 
 
-import warp as wp 
-from typing import Any
 @wp.struct
 class ListMeta:
     count: wp.array(dtype = int)
@@ -104,6 +103,15 @@ class ListMeta:
     volume_overflow: int
     count_overflow: wp.array(dtype = int)
 
+def list_with_meta(dtype, list_size, n_threads, volume_per_thread):
+    meta = ListMeta()
+    list = wp.zeros(list_size, dtype = dtype)
+    meta.count = wp.zeros(n_threads, dtype = int)
+    meta.volume_per_thread = volume_per_thread
+    meta.volume_overflow = list_size - volume_per_thread * n_threads
+    assert(meta.volume_per_thread >= 0)
+    return list, meta
+    
 @wp.func
 def insert(tid: int, meta: ListMeta, item: Any, a: wp.array(dtype = Any)):
     overflow_offset = meta.volume_per_thread * a.shape[0]

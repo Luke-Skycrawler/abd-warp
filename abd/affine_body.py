@@ -81,8 +81,11 @@ class AffineMesh(KineticMesh):
         ab.edges.assign(edges)
 
         ab.x0.assign(self.V)
-        ab.x.assign(self.V)
-        ab.x_view.assign(self.V)
+
+        print(self.V.shape)
+        Vt = self.V @ self.A.T + self.p.reshape(1, 3)
+        ab.x.assign(Vt)
+        ab.x_view.assign(Vt)
 
         return ab
 
