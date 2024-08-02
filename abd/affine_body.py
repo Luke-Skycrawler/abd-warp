@@ -17,6 +17,9 @@ class AffineBodyStates:
     A0: wp.array(dtype = wp.mat33)
     p0: wp.array(dtype = wp.vec3)
 
+    mass: wp.array(dtype = float)
+    I0: wp.array(dtype = float)
+
 def affine_body_states_empty(n_bodies):
     
     states = AffineBodyStates()
@@ -37,6 +40,7 @@ def affine_body_states_empty(n_bodies):
 
 @wp.struct
 class AffineBody:
+    id: int
     x0: wp.array(dtype = wp.vec3)       # rest shape
     x: wp.array(dtype = wp.vec3)        # current position
     x_view: wp.array(dtype = wp.vec3)   # view position
@@ -62,8 +66,9 @@ class AffineMesh(KineticMesh):
     def __init__(self, obj_json):
         super().__init__(obj_json)
         
-    def warp_affine_body(self):
+    def warp_affine_body(self, id):
         ab = AffineBody()
+        ab.id = id
         ab.x0 = wp.zeros(self.V.shape[0], dtype = wp.vec3)
         ab.x = wp.zeros_like(ab.x0)
         ab.x_view = wp.zeros_like(ab.x0)

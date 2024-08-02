@@ -20,12 +20,13 @@ class AffineBodySimulator(BaseSimulator):
 
         n_bodies = len(self.scene.kinetic_objects)
         self.n_bodies = n_bodies
-        # A, p, Adot, pdot flattened together
-        # while mesh information is stored in AffineBody struct
+        '''
+        A, p, Adot, pdot flattened together
+        while mesh information is stored in AffineBody struct
 
         # A[0], A[1], A[2] are the degrees of freedom
         # to project a vertice, use A.T @ x + p
-
+        '''
         self.states = affine_body_states_empty(n_bodies)
 
         self.states.A0.assign(self.gather("A"))
@@ -64,7 +65,7 @@ class AffineBodySimulator(BaseSimulator):
 
 
         # self.affine_bodies = wp.array([ko.warp_affine_body() for ko in self.scene.kinetic_objects], dtype = AffineBody)
-        self.affine_bodies = [ko.warp_affine_body() for ko in self.scene.kinetic_objects]
+        self.affine_bodies = [ko.warp_affine_body(i) for i, ko in enumerate(self.scene.kinetic_objects)]
 
     @classmethod
     def simulator_args(cls):

@@ -47,7 +47,7 @@ def energy_ortho(A: wp.mat33) -> float:
         for j in range(3):
             term = wp.dot(A[i], A[j]) - wp.select(i == j, 0.0, 1.0)
             e += term * term
-    return e * kappa
+    return e * stiffness
             
             
 
@@ -57,7 +57,7 @@ def grad_ortho(i: int, A: wp.mat33) -> wp.vec3:
     for j in range(3):
         grad += wp.dot(A[i], A[j]) * A[j]
 
-    return grad * 4.0 * kappa
+    return grad * 4.0 * stiffness
 
 @wp.func
 def hessian_ortho(i: int, j: int, A: wp.mat33) -> wp.mat33:
@@ -72,7 +72,7 @@ def hessian_ortho(i: int, j: int, A: wp.mat33) -> wp.mat33:
         hess += qiqiT + term2
     else:
         hess = wp.outer(A[j], A[i]) + wp.diag(wp.vec3(wp.dot(A[j], A[i])))
-    return hess * 4.0 * kappa
+    return hess * 4.0 * stiffness
 
 @wp.func
 def offset(i: int, j: int, bsr: BSR) -> int:
@@ -91,7 +91,7 @@ def bsr_hessian_inertia(bsr: BSR, states: AffineBodyStates):
             dh =wp.diag(I)
             if ii > 0 and jj > 0:
                 dh += hessian_ortho(ii - 1, jj - 1, states.A[i]) * dt * dt
-            bsr.blocks[os + ii + jj * 4] = bsr.blocks[os + ii + jj * 4] + dh
+            bsr.blocks[os + ii + jj * 4] += dh
 
 
 @wp.kernel
@@ -104,10 +104,10 @@ def flattened_gradient_inertia(g: wp.array(dtype = wp.vec3), states: AffineBodyS
     p_tilde = tildep(states.p0[i], states.pdot[i])
     q0, q1, q2, q3 = Mdq(states.A[i], states.p[i], A_tilde, p_tilde)
 
-    g[0 + i * 4] = g[0 + i * 4] + q0
-    g[1 + i * 4] = g[1 + i * 4] + q1
-    g[2 + i * 4] = g[2 + i * 4] + q2
-    g[3 + i * 4] = g[3 + i * 4] + q3
+    g[0 + i * 4] += q0
+    g[1 + i * 4] += q1
+    g[2 + i * 4] += q2
+    g[3 + i * 4] += q3
 
 @wp.kernel
 def _init(states: AffineBodyStates):
