@@ -132,11 +132,12 @@ class BvhBuilder:
         uppers = []
         lowers = []
         for b in bodies:
-            vnp = b.x0.numpy()
+            vnp = b.x.numpy()
             upper = np.max(vnp, axis = 0)
             lower = np.min(vnp, axis = 0)
             uppers.append(upper + dialation)
             lowers.append(lower - dialation)    
+            print(upper, lower)
         
         _uppers = wp.from_numpy(np.array(uppers), dtype = wp.vec3, shape = (len(uppers)))
         _lowers = wp.from_numpy(np.array(lowers), dtype = wp.vec3, shape = (len(lowers)))

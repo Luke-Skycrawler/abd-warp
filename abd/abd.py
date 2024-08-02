@@ -127,10 +127,11 @@ class AffineBodySimulator(BaseSimulator):
         return alpha, E1
 
     def collision_set(self):
-        return wp.zeros(0, dtype = wp.vec2i), wp.zeros(0, dtype = vec5i), wp.zeros(0, dtype = vec5i)
-        body_uppers, body_lowers, body_bvh = self.bb.build_body_bvh(self.affine_bodies, dhat)
+        # return wp.zeros(0, dtype = wp.vec2i), wp.zeros(0, dtype = vec5i), wp.zeros(0, dtype = vec5i)
+        bvh_bodies = self.bb.build_body_bvh(self.affine_bodies, dhat * 0.5)
         ij_list, ij_meta = list_with_meta(wp.vec2i, 4, 1, 4)
-        wp.launch(intersection_bodies, self.n_bodies, inputs = [body_bvh, body_lowers, body_uppers, ij_meta, ij_list])
+        wp.launch(intersection_bodies, self.n_bodies, inputs = [bvh_bodies.id, bvh_bodies.lowers, bvh_bodies.uppers, ij_meta, ij_list])
+
         compress(ij_meta, ij_list)
         for b, t, e, p in zip(self.affine_bodies, self.bvh_triangles, self.bvh_edges, self.bvh_points):
             self.bb.update_triangle_bvh(b.x, b.triangles, 0.0, t)
@@ -141,7 +142,7 @@ class AffineBodySimulator(BaseSimulator):
         ee_list = cull(ij_list, ij_meta, self.bvh_edges)
 
 
-        # return ij_list, ee_list, pt_list
+        return ij_list, ee_list, pt_list
     
     def V_gets_V(self, states):
         pass
