@@ -93,7 +93,7 @@ class BvhBuilder:
         bvh = wp.Bvh(lowers, uppers)
         return bvh
 
-    def update_point_bvh(self, V, bvh: wp.Bvh, dialation):
+    def update_point_bvh(self, V, dialation, bvh: wp.Bvh):
         wp.launch(bvh_points, V.shape[0], inputs = [dialation, V, bvh.uppers, bvh.lowers])
         bvh.refit()
         return bvh
@@ -137,7 +137,6 @@ class BvhBuilder:
             lower = np.min(vnp, axis = 0)
             uppers.append(upper + dialation)
             lowers.append(lower - dialation)    
-            print(upper, lower)
         
         _uppers = wp.from_numpy(np.array(uppers), dtype = wp.vec3, shape = (len(uppers)))
         _lowers = wp.from_numpy(np.array(lowers), dtype = wp.vec3, shape = (len(lowers)))

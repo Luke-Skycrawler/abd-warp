@@ -7,10 +7,10 @@ from culling2 import *
 
 
 
-def cull(ij_list, ij_meta: ListMeta, _bvh_list1, _bvh_list2 = None):
+def cull(ij_list, _bvh_list1, _bvh_list2 = None):
     bvh_list1 = extract_bvh_list(_bvh_list1)
     bvh_list2 = None
-    shape = ij_meta.compressed_size.numpy()[0]
+    shape = ij_list.shape[0]
     pt = 1
     if _bvh_list2 is None:
         bvh_list2 = bvh_list1
@@ -20,9 +20,13 @@ def cull(ij_list, ij_meta: ListMeta, _bvh_list1, _bvh_list2 = None):
         bvh_list2 = extract_bvh_list(_bvh_list2)
         pt = 1
 
-    prim_list, prim_meta = list_with_meta(vec5i, 32, 1, 16)
-    wp.launch(intersection_prims, shape, inputs = [ij_list, bvh_list1, bvh_list2, prim_list, pt])
-    compress(prim_list, prim_meta)
+    prim_list, prim_meta = list_with_meta(vec5i, 256, shape)
+    wp.launch(intersection_prims, (shape, ), inputs = [ij_list, bvh_list1, bvh_list2, prim_list, prim_meta, pt])
+
+    # print(prim_meta.count.numpy())
+    # print(prim_meta.count_overflow.numpy())
+    
+    prim_list = compress(prim_list, prim_meta)
     return prim_list
 
 insert_vec5i = insert_overload(vec5i)
@@ -56,9 +60,15 @@ if __name__ == "__main__":
 
     n_bodies = len(affine_bodies)
 
-    bb = BvhBuilder()
-    bvh_bodies = bb.build_body_bvh(sim.affine_bodies, dhat * 0.5)
-    ij_list, ij_meta = list_with_meta(wp.vec2i, 4, 1, 4)
-    wp.launch(intersection_bodies, n_bodies, inputs = [bvh_bodies.id, bvh_bodies.lowers, bvh_bodies.uppers, ij_meta, ij_list])
+    def body_body_test():
+        bb = BvhBuilder()
+        bvh_bodies = bb.build_body_bvh(sim.affine_bodies, dhat * 0.5)
+        ij_list, ij_meta = list_with_meta(wp.vec2i, 4, 1)
+        wp.launch(intersection_bodies, n_bodies, inputs = [bvh_bodies.id, bvh_bodies.lowers, bvh_bodies.uppers, ij_meta, ij_list])
+        
+        print(ij_list.numpy())
+
+    ij_list, ee_list, pt_list = sim.collision_set()
+    print(ee_list.numpy())
+    print(pt_list.numpy())
     
-    print(ij_list.numpy())

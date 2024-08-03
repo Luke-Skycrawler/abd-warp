@@ -35,10 +35,11 @@ def prefix_slow(a: wp.array1d(dtype = int), ref: wp.array1d(dtype = int)):
 class FenwickTree:
     def __init__(self, digits):
         self.digits = digits
-        self.N = N = 1 << digits
-        self.a = wp.zeros((N), dtype = int)
-        self.p = wp.zeros((N), dtype = int)
-        self.sum = wp.zeros((N), dtype = int)
+        self.N = 1 << digits
+        N = self.N
+        self.a = wp.zeros(shape = (N,), dtype = int)
+        self.p = wp.zeros(shape = (N,), dtype = int)
+        self.sum = wp.zeros(shape = (N,), dtype = int)
         
     def prefix_fast(self, arr, n = -1):
         wp.copy(self.a, arr)
@@ -104,7 +105,7 @@ class ListMeta:
     count_overflow: wp.array(dtype = int)
     compressed_size: wp.array(dtype = int)
 
-def list_with_meta(dtype, list_size, n_threads, volume_per_thread):
+def list_with_meta(dtype, list_size, n_threads, volume_per_thread = 0):
     '''
     returns a list of size list_size and metadata 
     volume_per_thread * n_threads space will be allocated for thread-local storage  
@@ -112,7 +113,8 @@ def list_with_meta(dtype, list_size, n_threads, volume_per_thread):
     '''
     meta = ListMeta()
     list = wp.zeros(list_size, dtype = dtype)
-    meta.count = wp.zeros(n_threads, dtype = int)
+    meta.count = wp.zeros((n_threads,), dtype = int)
+    meta.count_overflow = wp.zeros(1, dtype = int)
     meta.volume_per_thread = volume_per_thread
     meta.volume_overflow = list_size - volume_per_thread * n_threads
     meta.compressed_size = wp.zeros(1, dtype = int)
@@ -123,9 +125,10 @@ def insert_overload(dtype = float):
         
     @wp.func
     def _insert(tid: int, meta: ListMeta, item: dtype, a: wp.array(dtype = dtype)):
-        overflow_offset = meta.volume_per_thread * a.shape[0]
+        overflow_offset = meta.volume_per_thread * meta.count.shape[0]
+        thread_offset = tid * meta.volume_per_thread
         if meta.count[tid] < meta.volume_per_thread:
-            a[meta.count[tid]] = type(a[0])(item)
+            a[thread_offset + meta.count[tid]] = type(a[0])(item)
             meta.count[tid] += 1
         else:
             id = wp.atomic_add(meta.count_overflow, 0, 1)
@@ -146,8 +149,23 @@ class WarpList:
         self.meta.count 
         return 
         
-def compress(list, meta):
-    pass
+def compress(list, meta: ListMeta):
+    '''
+    compresses the list and returns the compressed list with shape excatly equal to the number of elements
+    '''
+    # print(meta.count.shape[0])
+    # digits = np.ceil(np.log2(meta.count.shape[0])).astype(int)
+    # print(digits)
+    # ft = FenwickTree(digits)
+    # N = ft.N
+    # new_shape = list.shape
+    # print(list.dtype)
+    # ft.prefix_fast(meta.count)
+    # ft.
+    new_shape = meta.count_overflow.numpy()[0]
+    new_list = wp.zeros(shape = (new_shape, ), dtype = list.dtype)
+    wp.copy(new_list, list, count = new_shape)
+    return new_list
 
 
 class Deleter:
