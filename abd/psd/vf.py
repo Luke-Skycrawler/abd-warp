@@ -1,6 +1,25 @@
 import warp as wp
 
 @wp.func
+def beta_gamma_pt(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
+    # point-triangle
+    e0 = x1 - x2
+    e1 = x3 - x2
+    e2 = x0 - x2
+
+    alpha = wp.dot(e0, e1) / wp.dot(e0, e0)
+
+    e1perp = e1 - alpha * e0
+    e0Te0 = wp.dot(e0, e0)
+    e0Te1 = wp.dot(e0, e1)
+    e1Te1 = wp.dot(e1, e1)
+    A = wp.mat22(e0Te0, e0Te1, e0Te1, e1Te1)
+    b = wp.vec2(wp.dot(e0, e2), wp.dot(e1, e2))
+
+    beta_gamma = wp.inverse(A) @ b
+    return beta_gamma[0], beta_gamma[1]
+
+@wp.func
 def C_vf(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     # point-triangle
     e0 = x1 - x2

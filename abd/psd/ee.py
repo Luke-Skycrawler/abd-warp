@@ -102,6 +102,18 @@ def dcdx_delta_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3, ret: wp.ar
     ret[2, 2] = -wp.outer(e0, dbdx2) - wp.outer(e1, dgdx2)
     ret[2, 3] = -wp.outer(e0, dbdx3) - wp.outer(e1, dgdx3)
 
+@wp.func
+def beta_gamma_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
+    e0 = x1 - x0
+    e1 = x3 - x2
+    e2 = x2 - x0
+
+    e0x12 = wp.dot(wp.cross(e0, e1), wp.cross(e0, e1))
+
+    bet = (wp.dot(e1, e1) * wp.dot(e0, e2) - wp.dot(e2, e1) * wp.dot(e0, e1)) / e0x12
+    gam = (wp.dot(e0, e0) * wp.dot(e2, e1) - wp.dot(e2, e0) * wp.dot(e0, e1)) / e0x12
+
+    return bet, gam
 
 @wp.func
 def dceedx_s(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):

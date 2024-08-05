@@ -217,6 +217,20 @@ def project_psd(A, Q, Lambda):
             ret -= np.outer(qi, qi) * term
     return ret
 
+@wp.kernel
+def test_distance(x: wp.array(dtype = wp.vec3)):
+    x0 = x[0]
+    x1 = x[1]
+    x2 = x[2]
+    x3 = x[3]
+    e0p, e1p, e2p = C_ee(x0, x1, x2, x3)
+    l = signed_distance(e0p, e1p, e2p)
+    l2 = l * l
+    e2n = wp.length_sq(e2p)
+    print(l2)
+    print(e2n)
+    # verified l2 is indeed e2n
+
 if __name__ == "__main__":
     wp.config.enable_backward = False
     wp.config.max_unroll = 0
