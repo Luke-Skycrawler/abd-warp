@@ -6,11 +6,13 @@ from sparse import BSR, bsr_empty
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
 class InertialEnergy:
     def __init__(self):
-        pass
+        self.e = wp.array(1, dtype = float)
 
-    def energy(self, e, states):
+    def energy(self, states):
+        e = self.e
         e.zero_()
         wp.launch(energy_inertia, states.A.shape, inputs = [states, e])
+        return self.e.numpy()[0]
     
     def gradient(self, g, states):
         g.zero_()

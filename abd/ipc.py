@@ -74,7 +74,7 @@ def verify_root_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     
 
 @wp.kernel
-def ipc_energy_ee(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), E: wp.array(dtype = float), bodies: wp.array(dtype = AffineBody)):
+def ipc_energy_ee(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     ijee = ee_list[i]
     I = ijee[0]
@@ -105,7 +105,7 @@ def ipc_energy_ee(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype =
         # do nothing. Catched by point-triangle distance instead 
 
 @wp.kernel
-def ipc_energy_vg(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), E: wp.array(dtype = float), bodies: wp.array(dtype = AffineBody)):
+def ipc_energy_vg(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     ip = vg_list[i]
     I = ip[0]
@@ -117,7 +117,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype =
     wp.atomic_add(E, 0, barrier(d * d))
 
 @wp.kernel
-def ipc_energy_pt(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), E: wp.array(dtype = float), bodies: wp.array(dtype = AffineBody)):
+def ipc_energy_pt(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     ijpt = pt_list[i]
     I = ijpt[0]

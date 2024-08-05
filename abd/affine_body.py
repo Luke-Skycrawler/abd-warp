@@ -8,8 +8,8 @@ class AffineBodyStates:
     A: wp.array(dtype = wp.mat33)
     p: wp.array(dtype = wp.vec3)
     
-    Ak: wp.array(dtype = wp.mat33)
-    pk: wp.array(dtype = wp.vec3)
+    Ak: wp.array(dtype = wp.mat33)  # used in line search
+    pk: wp.array(dtype = wp.vec3)   # used in line search
     
     Adot: wp.array(dtype = wp.mat33)
     pdot: wp.array(dtype = wp.vec3)
