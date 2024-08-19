@@ -2,6 +2,8 @@ import warp as wp
 import numpy as np
 from vf import C_vf, dcvfdx_s, dcdx_delta_vf
 from ee import C_ee, dceedx_s, dcdx_delta_ee
+from matrix_prod import *
+from dcdx_delta import *
 
 @wp.func
 def distance(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
@@ -107,20 +109,9 @@ def test_ee(x: wp.array(dtype = wp.vec3), dcdx_delta: wp.array2d(dtype = wp.mat3
     #         hil += dcdx_simple[jj, ii] * d2Psi[jj, kk] * dcdx_simple[kk, ll] - wp.transpose(dcdx_delta[jj, ii]) @ d2Psi[jj, kk] @ dcdx_delta[kk, ll] 
 
     #         wp.atomic_add(ret, ii, ll, hil)
-    
-@wp.kernel
-def d2Psidx2(ret: wp.array2d(dtype = wp.mat33), d2Psi: wp.array2d(dtype = wp.mat33), dcdx_simple: wp.array2d(dtype = float), dcdx_delta: wp.array2d(dtype = wp.mat33)):
-    ii, ll = wp.tid()
-    h = wp.mat33(0.0)
-    # H = dcdx_simple.T @ d2Psi @ dcdx_simple - dcdx_delta.T @ d2Psi @ dcdx_delta
-    for jj in range(3):
-        for kk in range(4):
-            h += dcdx_simple[jj, ii] * d2Psi[jj, kk] * dcdx_simple[kk, ll] - wp.transpose(dcdx_delta[jj, ii]) @ d2Psi[jj, kk] @ dcdx_delta[kk, ll]
-    ret[ii, ll] = h
-        
-    
+                
 @wp.func
-def eig_Hl(e0p: wp.vec3, e1p: wp.vec3, e2p: wp.vec3, ret: wp.array2d(dtype = wp.vec3)):
+def eig_Hl(e0p: wp.vec3, e1p: wp.vec3, e2p: wp.vec3, q: wp.array2d(dtype = wp.vec3)):
     l = signed_distance(e0p, e1p, e2p)
 
     e0pn = wp.length_sq(e0p)
@@ -141,18 +132,19 @@ def eig_Hl(e0p: wp.vec3, e1p: wp.vec3, e2p: wp.vec3, ret: wp.array2d(dtype = wp.
     omega2 = lam2 / (lam2 - l / e2pn)
     omega3 = lam3 / (lam3 - l / e2pn)
     
-    ret[0, 0] = z31
-    ret[0, 1] = e2p
-    ret[0, 2] = omega0 * e1p
-    ret[1, 0] = z31
-    ret[1, 1] = e2p
-    ret[1, 2] = omega1 * e1p
-    ret[2, 0] = e2p
-    ret[2, 1] = z31
-    ret[2, 2] = omega2 * e0p
-    ret[3, 0] = e2p
-    ret[3, 1] = z31
-    ret[3, 2] = omega3 * e0p
+    # bundles to a eigen vector every 3 items
+    q[0, 0] = z31
+    q[0, 1] = e2p
+    q[0, 2] = omega0 * e1p
+    q[1, 0] = z31
+    q[1, 1] = e2p
+    q[1, 2] = omega1 * e1p
+    q[2, 0] = e2p
+    q[2, 1] = z31
+    q[2, 2] = omega2 * e0p
+    q[3, 0] = e2p
+    q[3, 1] = z31
+    q[3, 2] = omega3 * e0p
 
     return lam0 * 2.0 * l, lam1 * 2.0 * l, lam2 * 2.0 * l, lam3 * 2.0 * l
     # return  z31, e2p, omega0 * e1p,\
@@ -206,7 +198,6 @@ def verify_eig_sys_vf(x: wp.array(dtype = wp.vec3), q: wp.array2d(dtype = wp.vec
     q[4, 1] = gl1
     q[4, 2] = gl2
 
-    
 def project_psd(A, Q, Lambda):
     n = A.shape[0]
     ret = np.copy(A)
@@ -248,50 +239,119 @@ if __name__ == "__main__":
     dcdx_delta = wp.zeros((3, 4), dtype = wp.mat33)
     ret = wp.zeros((4, 4), dtype = wp.mat33)
     d2Psi = wp.zeros((3, 3), dtype = wp.mat33)
-    wp.launch(test_vf, 1, inputs = [x, dcdx_delta, ret, d2Psi, dcdx_simple])
-    # wp.launch(test_ee, 1, inputs = [x, dcdx_delta, ret, d2Psi, dcdx_simple])
-    print(ret.numpy())
-    ret.zero_()
-    wp.launch(d2Psidx2, (4, 4), inputs = [ret, d2Psi, dcdx_simple, dcdx_delta])
-    print(ret.numpy())
-
     q = wp.zeros((9,3), dtype = wp.vec3)
     lam = wp.zeros((1, 9), dtype = float)
+    l = wp.zeros((4, 5), dtype = wp.vec3)
 
-    wp.launch(verify_eig_sys_vf, 1, inputs = [x, q, lam])
-    Q = q.numpy().reshape(9, 9).T
-    Lambda = np.diag(lam.numpy().reshape(9))
-    # print(Q)
-    # print(Lambda)
-    # print(Q @ Lambda)
-    # assemble H from numpy
-    _dc_s = dcdx_simple.numpy().reshape(3, 4)
-    _d2Psi = d2Psi.numpy()
-    d2Psidc = np.zeros((9, 9))
-    for ii in range(3):
-        for jj in range(3):
-            d2Psidc[ii * 3: ii * 3 + 3, jj * 3: jj * 3 + 3] = _d2Psi[ii, jj]
-    dc_s = np.kron(_dc_s, np.eye(3))
-    dc_d = np.zeros((9, 12))
-    _dc_d = dcdx_delta.numpy()
-    for ii in range(3):
-        for jj in range(4):
-            dc_d[ii * 3: ii * 3 + 3, jj * 3: jj * 3 + 3] = _dc_d[ii, jj]
+    def to_numpy(__d2Psi):
+        _d2Psi = __d2Psi.numpy()
+        d2Psidc = np.zeros((3 * __d2Psi.shape[0], 3 * __d2Psi.shape[1]))
+        for ii in range(__d2Psi.shape[0]):
+            for jj in range(__d2Psi.shape[1]):
+                d2Psidc[ii * 3: ii * 3 + 3, jj * 3: jj * 3 + 3] = _d2Psi[ii, jj]
+        return d2Psidc
+
+    def test2():
+        wp.launch(test_vf, 1, inputs = [x, dcdx_delta, ret, d2Psi, dcdx_simple])
+        wp.launch(verify_eig_sys_vf, 1, inputs = [x, q, lam])
+        d2Psidc = to_numpy(d2Psi)
+        wp.launch(d2Psi_psd, 1, inputs = [d2Psi, q, lam])
+        d2Psidc1 = to_numpy(d2Psi)
+
+        # wp.launch(dcdx_sTq_dcdx, 1, inputs = [dcdx_simple, q, ret, l, lam])
+
+        Q = q.numpy().reshape(9, 9).T
+        QTQ = Q.T @ Q
+        diag_inv = np.array([(0.0 if i >= 5 else (1.0 / QTQ[i, i])) for i in range(9)])
+
+        Lambda = np.diag(lam.numpy().reshape(9))
+
+        diaginv = np.diag(diag_inv)
+        Q_inv = diaginv @ Q.T
+        # print(Q)
+        # print(Q_inv @ d2Psidc @ Q)
+        # print(Q_inv @ d2Psidc1 @ Q)
+        # print(Q_inv @ d2Psidc2 @ Q)
+
+        # print(Q @ Lambda @ Q_inv)
+        Lambda_pos = np.diag(np.maximum(lam.numpy().reshape(9), np.zeros(9)))
+        # print(Q @ Lambda_pos @ Q_inv)
+        # print(d2Psidc1)
+        # print(d2Psidc1 - Q @ Lambda_pos @ Q_inv)
+
+
+        _dc_s = dcdx_simple.numpy().reshape(3, 4)
+        dc_s = np.kron(_dc_s, np.eye(3))
+        dc_d = to_numpy(dcdx_delta)
+
+        # _ret = to_numpy(ret)
+        # print(_ret)
+        # print(dc_s.T @ d2Psidc1 @ dc_s)
+        # print(dc_s.T @ d2Psidc1 @ dc_s - _ret)
+
+        t = wp.array(dtype = float, shape = (3, 5))
+        a = wp.array(dtype = wp.vec3, shape = (3, 4))
+        wp.launch(dcdx_delta_kernel, 1, inputs = [q, lam, x, t, ret, a])
+
+        _ret = to_numpy(ret)
+        ref = dc_d.T @ d2Psidc @ dc_d
+        print(dc_d.T @ d2Psidc @ dc_d)
+        print(dc_d, d2Psidc)
+        # print(_ret)
+        # print(ref - _ret)
+
+        # print(d2Psidc - Q @ Lambda @ Q_inv)
+        
     
-    H = dc_s.T @ d2Psidc @ dc_s - dc_d.T @ d2Psidc @ dc_d
+    # test2()
 
-    # print(d2Psidc @ Q - Q @ Lambda)
-    d2Psidc1 = project_psd(d2Psidc, Q, Lambda)
-    d2Psidc2 = project_psd(-d2Psidc, Q, -Lambda)
-    QTQ = Q.T @ Q
-    diag_inv = np.array([(0.0 if i >= 5 else (1.0 / QTQ[i, i])) for i in range(9)])
+    def test():
+        wp.launch(test_ee, 1, inputs = [x, dcdx_delta, ret, d2Psi, dcdx_simple])
+        # wp.launch(test_ee, 1, inputs = [x, dcdx_delta, ret, d2Psi, dcdx_simple])
+        print(ret.numpy())
+        ret.zero_()
+        wp.launch(d2Psidx2, (4, 4), inputs = [ret, d2Psi, dcdx_simple, dcdx_delta])
+        print(ret.numpy())
 
-    diaginv = np.diag(diag_inv)
-    Q_inv = diaginv @ Q.T
 
-    # print(Q_inv @ Q)
-    print(Q_inv @ d2Psidc @ Q)
-    print(Q_inv @ d2Psidc1 @ Q)
-    print(Q_inv @ d2Psidc2 @ Q)
-    # print(np.diag(Q.T @ d2Psidc1 @ Q))
-    # print(Q.T @ Q)
+        wp.launch(verify_eig_sys_vf, 1, inputs = [x, q, lam])
+        Q = q.numpy().reshape(9, 9).T
+        Lambda = np.diag(lam.numpy().reshape(9))
+        # print(Q)
+        # print(Lambda)
+        # print(Q @ Lambda)
+        # assemble H from numpy
+        _dc_s = dcdx_simple.numpy().reshape(3, 4)
+        _d2Psi = d2Psi.numpy()
+
+        d2Psidc = to_numpy(d2Psi)
+        dc_s = np.kron(_dc_s, np.eye(3))
+        dc_d = to_numpy(dcdx_delta)
+
+        # dc_d = np.zeros((9, 12))
+        # _dc_d = dcdx_delta.numpy()
+        # for ii in range(3):
+        #     for jj in range(4):
+        #         dc_d[ii * 3: ii * 3 + 3, jj * 3: jj * 3 + 3] = _dc_d[ii, jj]
+        
+        H = dc_s.T @ d2Psidc @ dc_s - dc_d.T @ d2Psidc @ dc_d
+        H2 = dc_d.T @ d2Psidc @ dc_d
+        print(dc_d, d2Psidc)
+        print(H2)
+
+        # print(d2Psidc @ Q - Q @ Lambda)
+        d2Psidc1 = project_psd(d2Psidc, Q, Lambda)
+        d2Psidc2 = project_psd(-d2Psidc, Q, -Lambda)
+        QTQ = Q.T @ Q
+        diag_inv = np.array([(0.0 if i >= 5 else (1.0 / QTQ[i, i])) for i in range(9)])
+
+        diaginv = np.diag(diag_inv)
+        Q_inv = diaginv @ Q.T
+
+        # print(Q_inv @ Q)
+        print(Q_inv @ d2Psidc @ Q)
+        print(Q_inv @ d2Psidc1 @ Q)
+        print(Q_inv @ d2Psidc2 @ Q)
+        # print(np.diag(Q.T @ d2Psidc1 @ Q))
+        # print(Q.T @ Q)
+    test()

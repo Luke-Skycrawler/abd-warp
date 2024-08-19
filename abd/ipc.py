@@ -77,21 +77,7 @@ def verify_root_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
 def ipc_energy_ee(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     ijee = ee_list[i]
-    I = ijee[0]
-    J = ijee[1]
-
-    bi = bodies[I]
-    bj = bodies[J]
-    eaid = ijee[2]
-    ebid = ijee[3]
-    E0 = bi.edges[eaid]
-    E1 = bj.edges[ebid]
-
-    ea0 = bi.x[E0[0]]
-    ea1 = bi.x[E0[1]]
-    eb0 = bj.x[E1[0]]
-    eb1 = bj.x[E1[1]]
-
+    ea0, ea1, eb0, eb1 = fetch_ee(ijee, bodies)
     beta, gamma = beta_gamma_ee(ea0, ea1, eb0, eb1)
 
     cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 # edge edge  distance
@@ -119,21 +105,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype =
 @wp.kernel
 def ipc_energy_pt(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
-    ijpt = pt_list[i]
-    I = ijpt[0]
-    J = ijpt[1]
-
-    bi = bodies[I]
-    bj = bodies[J]
-    pid = ijpt[2]
-    tid = ijpt[3]
-
-    T = bj.triangles[tid]
-
-    p = bi.x[pid]
-    t0 = bj.x[T[0]]
-    t1 = bj.x[T[1]]
-    t2 = bj.x[T[2]]
+    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
 
     beta, gamma = beta_gamma_pt(p, t0, t1, t2)
     cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 and (beta + gamma) < 1.0  # point triangle. the projection of the point is inside the triangle
@@ -147,10 +119,47 @@ def ipc_energy_pt(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype =
 
 
 
+@wp.func
+def fetch_pt(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 
+    I = ijpt[0]
+    J = ijpt[1]
 
+    bi = bodies[I]
+    bj = bodies[J]
+    pid = ijpt[3]
+    tid = ijpt[4]
+
+    T = bj.triangles[tid]
+
+    p = bi.x[pid]
+    t0 = bj.x[T[0]]
+    t1 = bj.x[T[1]]
+    t2 = bj.x[T[2]]
+    return p, t0, t1, t2
+
+@wp.func
+def fetch_ee(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
+    I = ijee[0]
+    J = ijee[1]
+
+    bi = bodies[I]
+    bj = bodies[J]
+    eiid = ijee[3]
+    ejid = ijee[4]
+
+    EI = bi.edges[eiid]
+    EJ = bj.edges[ejid]
+
+    ei0 = bi.x[EI[0]]
+    ei1 = bi.x[EI[1]]
+
+    ej0 = bj.x[EJ[0]]
+    ej1 = bj.x[EJ[1]]
+
+    return ei0, ei1, ej0, ej1
 
 @wp.kernel
-def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), bsr: BSR, states: AffineBodyStates):
+def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33)):
     i = wp.tid()
 
     col = vg_list[i]
@@ -164,7 +173,7 @@ def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Af
     d = vg_distance(v)
     d2bdb2 = barrier_derivative2(d * d)
 
-    os = offset(i, i, bsr)
+    os = b * 16
     for ii in range(4):
         theta_ii = wp.select(ii == 0, vtile[ii - 1], 1.0)
         g[4 * b + ii] += d * 2.0 * nabla_d * theta_ii 
@@ -174,17 +183,24 @@ def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Af
             nabla_d_nabla_dT = wp.outer(nabla_d, nabla_d)
 
             dh = nabla_d_nabla_dT * theta_ii * theta_jj * d2bdb2
-            bsr.blocks[os + ii + jj * 4] += dh
+            blocks[os + ii + jj * 4] += dh
             
 
-
-@wp.func
-def ipc_hess(pt: wp.vec2, ij: wp.vec2, pt_type: int, d: float):
-    pass
-
 @wp.kernel
-def ipc_term_pt(pt_list: wp.array(dtype = wp.vec2), ij_list: wp.array(dtype = wp.vec2), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), bsr: BSR, states: AffineBodyStates):
+def ipc_term_pt(nij: int, pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33), states: AffineBodyStates):
     i = wp.tid()
+
+    n_bodies = bodies.shape[0]
+
+    idx = pt_list[i][2]
+
+    offset_upper = 16 * (n_bodies + idx)
+    offset_lower = 16 * (n_bodies + idx + nij)
+
+    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
+    
+
+
 
 
 
