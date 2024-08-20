@@ -20,7 +20,7 @@ class IPCContactEnergy:
         ee_list = inputs[0]
         pt_list = inputs[1]
         vg_list = inputs[2]
-        E = wp.array(dtype = wp.zeros((1, ), dtype = float))
+        E = wp.zeros((1, ), dtype =float)
         inputs.append(E)
         wp.launch(ipc_energy_ee, dim = ee_list.shape, inputs = inputs)
         wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
@@ -32,6 +32,12 @@ class IPCContactEnergy:
 
     def hessian(self, inputs):
         pass
+
+    def gh(self, inputs):
+
+        vg_list, bodies, g, blocks = inputs
+
+        wp.launch(ipc_term_vg, dim = vg_list.shape, inputs = inputs)
 
 @wp.func
 def barrier(d: float) -> float:
@@ -74,7 +80,7 @@ def verify_root_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     
 
 @wp.kernel
-def ipc_energy_ee(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
+def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     ijee = ee_list[i]
     ea0, ea1, eb0, eb1 = fetch_ee(ijee, bodies)
@@ -88,10 +94,10 @@ def ipc_energy_ee(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype =
         wp.atomic_add(E, 0, barrier(d2))
     else:
         pass
-        # do nothing. Catched by point-triangle distance instead 
+        # do nothing. Caught by point-triangle distance instead 
 
 @wp.kernel
-def ipc_energy_vg(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
+def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     ip = vg_list[i]
     I = ip[0]
@@ -103,7 +109,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype =
     wp.atomic_add(E, 0, barrier(d * d))
 
 @wp.kernel
-def ipc_energy_pt(ee_list: wp.array(dtype = wp.vec2i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
+def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
 
@@ -176,14 +182,16 @@ def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Af
     os = b * 16
     for ii in range(4):
         theta_ii = wp.select(ii == 0, vtile[ii - 1], 1.0)
-        g[4 * b + ii] += d * 2.0 * nabla_d * theta_ii 
+        wp.atomic_add(g, 4 * b + ii, d * 2.0 * nabla_d * theta_ii)
+        # g[4 * b + ii] += d * 2.0 * nabla_d * theta_ii 
         for jj in range(4):
             theta_jj = wp.select(jj == 0, vtile[jj - 1], 1.0)
             
             nabla_d_nabla_dT = wp.outer(nabla_d, nabla_d)
 
             dh = nabla_d_nabla_dT * theta_ii * theta_jj * d2bdb2
-            blocks[os + ii + jj * 4] += dh
+            # blocks[os + ii + jj * 4] += dh
+            wp.atomic_add(blocks, os + ii + jj * 4, dh)
             
 
 @wp.kernel

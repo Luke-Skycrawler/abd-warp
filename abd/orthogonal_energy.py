@@ -6,7 +6,7 @@ from sparse import BSR, bsr_empty
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
 class InertialEnergy:
     def __init__(self):
-        self.e = wp.array(1, dtype = float)
+        self.e = wp.zeros(1, dtype = float)
 
     def energy(self, states):
         e = self.e
@@ -180,7 +180,7 @@ def _update_q0qdot(states: AffineBodyStates):
 
 if __name__ == "__main__":
     wp.init()
-    bsr = bsr_empty(1) 
+    # bsr = bsr_empty(1) 
     states = affine_body_states_empty(1)
     # A = wp.zeros(1, dtype = wp.mat33)
     g = wp.zeros(4, dtype = wp.vec3)
@@ -202,13 +202,14 @@ if __name__ == "__main__":
         it = 0 
         while True:
             inertia.gradient(g, states)
-            inertia.hessian(bsr, states)
+            inertia.hessian(values, states)
 
 
-            values.assign(bsr.blocks.flatten())
+            # values.assign(bsr.blocks.flatten())
+
             # print(bsr.blocks.numpy())
 
-            wp.launch(_set_triplets, 1, inputs = [rows, cols])
+            wp.launch(_set_triplets, 1, inputs = [1, 0, None, rows, cols])
             bsr_set_from_triplets(hess, rows, cols, values)
             bicgstab(hess, g, dq, 1e-4)
 

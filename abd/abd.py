@@ -7,7 +7,7 @@ from sparse import BSR, bsr_empty
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
 from orthogonal_energy import InertialEnergy
 from ipc import IPCContactEnergy
-from culling import BvhBuilder, intersection_bodies, cull
+from culling import BvhBuilder, intersection_bodies, cull, cull_vg
 from simulator.fenwick import list_with_meta, insert_overload, ListMeta, compress
 from typing import List
 # temporary
@@ -45,7 +45,6 @@ class AffineBodySimulator(BaseSimulator):
         self.tmp_ret = wp.zeros(self.n_tmp, dtype = float)
 
 
-        self.bsr = bsr_empty(n_bodies)
 
         self.g = wp.zeros(n_bodies * 4, dtype = wp.vec3)
         self.dq = wp.zeros_like(self.g)
@@ -104,13 +103,13 @@ class AffineBodySimulator(BaseSimulator):
     def proximity_set(self):
         pass
 
-    def compute_energy(self, alpha):
-        self.update_q(alpha)
+    def compute_energy(self, alpha = 0.0):
+        self.update_qk(alpha)
         self.update_mesh_vertex("x", line_search = True)
 
         ij_list, pt_list, ee_list, vg_list = self.collision_set()
 
-        e_c = self.ipc_contact.energy(ee_list, pt_list , vg_list, self.warp_affine_bodies)
+        e_c = self.ipc_contact.energy([ee_list, pt_list, vg_list, self.warp_affine_bodies])
         e_i = self.inertia.energy(self.states)
         return e_c + e_i
 
@@ -146,7 +145,9 @@ class AffineBodySimulator(BaseSimulator):
 
         ee_list = cull(ij_list, self.bvh_edges)
         pt_list = cull(ij_list, self.bvh_triangles, self.bvh_points)
-        return ij_list, ee_list, pt_list
+
+        vg_list = cull_vg(bvh_bodies.lowers, self.bvh_points)
+        return ij_list, ee_list, pt_list, vg_list
     
     def V_gets_V(self, states):
         pass
@@ -155,23 +156,25 @@ class AffineBodySimulator(BaseSimulator):
         states = self.states
         inertia = self.inertia
         g = self.g
-        bsr = self.bsr
         rows, cols, hess = self.rows, self.cols, self.hess
         dq = self.dq
         ipc_contact = self.ipc_contact
         
         self.q_gets_q0()
         self.V_gets_V(states)
-        ij_list, ee_list, pt_list = self.collision_set()
-        E0 = self.compute_energy(0.0)
-        self.blocks = wp.zeros(shape = ((self.n_bodies + ij_list.shape[0] * 2) * 16), dtype = wp.mat33)
+        ij_list, ee_list, pt_list, vg_list = self.collision_set()
+        E0 = self.compute_energy(alpha = 0.0)
+        # self.blocks = wp.zeros(shape = ((self.n_bodies + ij_list.shape[0] * 2) * 16, ), dtype = wp.mat33)
+        self.blocks.zero_()
         it = 0 
         while True:
             inertia.gradient(g, states)
             inertia.hessian(self.blocks, states)
 
-            ipc_contact.gradient([g, states, ij_list, ee_list, pt_list])
-            ipc_contact.hessian([self.blocks, states, ij_list, ee_list, pt_list])
+            # ipc_contact.gradient([g, states, ij_list, ee_list, pt_list])
+            # ipc_contact.hessian([self.blocks, states, ij_list, ee_list, pt_list])
+
+            # ipc_contact.gh([vg_list, self.warp_affine_bodies, g, self.blocks])
 
             wp.launch(_set_triplets, self.n_bodies, inputs = [self.n_bodies,  ij_list.shape[0], ij_list, rows, cols])
             bsr_set_from_triplets(hess, rows, cols, self.blocks)
@@ -182,7 +185,8 @@ class AffineBodySimulator(BaseSimulator):
             # print(g.numpy())
             # print(dq.numpy())
             alpha_cap = self.ccd(states, dq)
-            alpha, E0 = self.line_search(alpha_cap, E0)
+            # alpha, E0 = self.line_search(alpha_cap, E0)
+            alpha, E0 = 1.0, E0
 
             
             self.update_q(alpha)
@@ -196,6 +200,7 @@ class AffineBodySimulator(BaseSimulator):
         self.update_q0qdot()
         self.update_mesh_vertex("x_view")
         # print("a dot = ", states.Adot.numpy())
+        print('frame: ', frame, 'energy: ', E0)
 
     def ccd(self, states, dq):
         return 1.0
@@ -212,10 +217,13 @@ class AffineBodySimulator(BaseSimulator):
             p = pnp[i]
 
             x = A @ x0.T + p.reshape(3, 1)
-            ab[field].assign(x.T)
+            getattr(ab, field).assign(x.T)
 
     def update_q(self, alpha):
         wp.launch(_update_q, self.n_bodies, inputs = [self.states, self.dq, alpha])
+
+    def update_qk(self, alpha):
+        wp.launch(_update_qk, self.n_bodies, inputs = [self.states, self.dq, alpha])
 
     def update_q0qdot(self):
         wp.launch(_update_q0qdot, self.n_bodies, inputs = [self.states])
@@ -228,10 +236,19 @@ class AffineBodySimulator(BaseSimulator):
 @wp.kernel
 def _update_q(states: AffineBodyStates, dq: wp.array(dtype = wp.vec3), alpha: float):
     i = wp.tid()
-    states.pk[i] = states.p[i] - dq[i * 4 + 0] * alpha
+    states.p[i] = states.p[i] - dq[i * 4 + 0] * alpha
     q1 = states.A[i][0] - dq[i * 4 + 1] * alpha
     q2 = states.A[i][1] - dq[i * 4 + 2] * alpha
     q3 = states.A[i][2] - dq[i * 4 + 3] * alpha
+    states.A[i] = wp.transpose(wp.mat33(q1, q2, q3))
+
+@wp.kernel
+def _update_qk(states: AffineBodyStates, dq: wp.array(dtype = wp.vec3), alpha: float):
+    i = wp.tid()
+    states.pk[i] = states.p[i] - dq[i * 4 + 0] * alpha
+    q1 = states.Ak[i][0] - dq[i * 4 + 1] * alpha
+    q2 = states.Ak[i][1] - dq[i * 4 + 2] * alpha
+    q3 = states.Ak[i][2] - dq[i * 4 + 3] * alpha
     states.Ak[i] = wp.transpose(wp.mat33(q1, q2, q3))
 
 @wp.kernel
@@ -253,7 +270,7 @@ if __name__ == "__main__":
 
     # sim_thread = threading.Thread(target=sim.step)
     # sim_thread.start()
-
+    print("simulation started")
     ps_meshes = []
     for i, body in enumerate(sim.scene.kinetic_objects):
         ps_meshes.append(ps.register_surface_mesh(f"body{i}", body.V, body.F))

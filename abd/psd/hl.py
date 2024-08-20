@@ -1,9 +1,9 @@
 import warp as wp 
 import numpy as np
-from vf import C_vf, dcvfdx_s, dcdx_delta_vf
-from ee import C_ee, dceedx_s, dcdx_delta_ee
-from matrix_prod import *
-from dcdx_delta import *
+from .vf import C_vf, dcvfdx_s, dcdx_delta_vf
+from .ee import C_ee, dceedx_s, dcdx_delta_ee
+# from .matrix_prod import *
+# from .dcdx_delta import *
 
 @wp.func
 def distance(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):

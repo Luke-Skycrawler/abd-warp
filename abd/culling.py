@@ -5,8 +5,7 @@ from simulator.fenwick import ListMeta, insert_overload, list_with_meta, compres
 
 from culling2 import *
 
-
-
+from const_params import dhat
 def cull(ij_list, _bvh_list1, _bvh_list2 = None):
     bvh_list1 = extract_bvh_list(_bvh_list1)
     bvh_list2 = None
@@ -29,6 +28,29 @@ def cull(ij_list, _bvh_list1, _bvh_list2 = None):
     prim_list = compress(prim_list, prim_meta)
     return prim_list
 
+def cull_vg(lowers, _bvh_list):
+    bvh_list = extract_bvh_list(_bvh_list)
+    prim_list, prim_meta = list_with_meta(wp.vec2i, 256, lowers.shape[0])
+    wp.launch(intersection_ground, dim = lowers.shape[0], inputs = [lowers, bvh_list, prim_list, prim_meta])
+
+    prim_list = compress(prim_list, prim_meta)
+
+    return prim_list
+
+
+@wp.kernel
+def intersection_ground(lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dtype = BvhStruct), vg_list: wp.array(dtype = wp.vec2i), prim_meta: ListMeta):
+    i = wp.tid()
+    if lowers[i][1] < 0.0:
+        bound = 1e3
+        u = wp.vec3(bound, 0.0, bound)
+        l = wp.vec3(-bound, -bound, -bound)
+        id = bvh_list[i].id
+        query = wp.bvh_query_aabb(id, l, u)
+        pid = int(0)
+        while wp.bvh_query_next(query, pid):
+            insert_vec2i(i, prim_meta, wp.vec2i(i, pid), vg_list)
+        
 insert_vec5i = insert_overload(vec5i)
 insert_vec2i = insert_overload(wp.vec2i)
 
