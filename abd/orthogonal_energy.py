@@ -113,7 +113,7 @@ def flattened_gradient_inertia(g: wp.array(dtype = wp.vec3), states: AffineBodyS
 
 @wp.kernel
 def _init(states: AffineBodyStates):
-    states.Adot[0] = wp.skew(wp.vec3(10.0, 0.0, 0.0))
+    states.Adot[0] = wp.skew(wp.vec3(1.0, 0.0, 0.0))
     # states.Adot[0] = wp.mat33(0.0)
     states.A[0] = wp.diag(wp.vec3(1.0))
     states.A0[0] = wp.diag(wp.vec3(1.0))

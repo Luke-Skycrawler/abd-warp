@@ -205,24 +205,26 @@ class AffineBodySimulator(BaseSimulator):
         ipc_contact = self.ipc_contact
         
         self.q_gets_q0()
-        self.V_gets_V(states)
-        ij_list, ee_list, pt_list, vg_list = self.collision_set()
         E0 = self.compute_energy(alpha = 0.0)
         # self.blocks = wp.zeros(shape = ((self.n_bodies + ij_list.shape[0] * 2) * 16, ), dtype = wp.mat33)
-        self.blocks.zero_()
         it = 0 
         while True:
+            self.V_gets_V(states)
+            ij_list, ee_list, pt_list, vg_list = self.collision_set()
+            nij = ij_list.shape[0]
+            
+            self.blocks.zero_()
             inertia.gradient(g, states)
             inertia.hessian(self.blocks, states)
 
             # ipc_contact.gradient([g, states, ij_list, ee_list, pt_list])
             # ipc_contact.hessian([self.blocks, states, ij_list, ee_list, pt_list])
 
-            ipc_contact.gh([vg_list, self.warp_affine_bodies, g, self.blocks])
+            ipc_contact.gh([pt_list, ee_list, vg_list, nij, self.warp_affine_bodies, g, self.blocks])
 
             rows.zero_()
             cols.zero_()
-            wp.launch(_set_triplets, self.n_bodies, inputs = [self.n_bodies,  ij_list.shape[0], ij_list, rows, cols])
+            wp.launch(_set_triplets, self.n_bodies, inputs = [self.n_bodies,  nij, ij_list, rows, cols])
             bsr_set_from_triplets(hess, rows, cols, self.blocks)
             bicgstab(hess, g, dq, 1e-4)
             if vg_list.shape[0] > 0:

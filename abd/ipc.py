@@ -29,9 +29,12 @@ class IPCContactEnergy:
 
     def gh(self, inputs):
 
-        vg_list, bodies, g, blocks = inputs
+        pt_list, ee_list, vg_list, nij, bodies, g, blocks = inputs
         dim = vg_list.shape[0]
-        wp.launch(ipc_term_vg, dim = (dim, ), inputs = inputs)
+
+        ipc_term_pt(pt_list, bodies, g, blocks)
+        ipc_term_ee(ee_list, bodies, g, blocks)
+        wp.launch(ipc_term_vg, dim = (dim, ), inputs = [vg_list, bodies, g, blocks])
         return dim
 
 @wp.func
@@ -140,20 +143,24 @@ def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i),
             wp.atomic_add(blocks, os + ii + jj * 4, dh)
             
 
-@wp.kernel
-def ipc_term_pt(nij: int, pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33)):
-    i = wp.tid()
+# @wp.kernel
+# def ipc_term_pt(nij: int, pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33)):
+#     i = wp.tid()
 
-    n_bodies = bodies.shape[0]
+#     n_bodies = bodies.shape[0]
 
-    idx = pt_list[i][2]
+#     idx = pt_list[i][2]
 
-    offset_upper = 16 * (n_bodies + idx)
-    offset_lower = 16 * (n_bodies + idx + nij)
+#     offset_upper = 16 * (n_bodies + idx)
+#     offset_lower = 16 * (n_bodies + idx + nij)
 
-    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
+#     p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
     
+def ipc_term_pt(pt_list, bodies, g, blocks):
+    return 
 
+def ipc_term_ee(ee_list, bodies, g, blocks):
+    return
 
 
 
