@@ -1,7 +1,59 @@
 from const_params import *
 from cubic_roots import cubic_roots
-from ipc import verify_root_ee, verify_root_pt, vg_distance
-mat23 = wp.types.matrix(2, 3, float)
+from fetch_utils import vg_distance
+
+from psd.ee import beta_gamma_ee
+from psd.vf import beta_gamma_pt
+from affine_body import AffineBody
+from fetch_utils import fetch_vertex, fetch_xk, fetch_ee, fetch_pt, fetch_pt_xk, fetch_ee_xk
+
+@wp.kernel
+def toi_vg(bodies: wp.array(dtype = AffineBody), vg_list: wp.array(dtype = wp.vec2i), toi: wp.array(dtype = float)):
+
+    tid = wp.tid()
+    xt0 = fetch_vertex(vg_list[tid], bodies)
+    xt1 = fetch_xk(vg_list[tid], bodies)
+
+    t = vg_collison_time(xt0, xt1)
+    if t < 1.0:
+        wp.atomic_min(toi, 0, t)
+
+@wp.kernel
+def toi_pt(bodies: wp.array(dtype = AffineBody), pt_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
+
+    tid = wp.tid()
+    p, t0, t1, t2 = fetch_pt(pt_list[tid], bodies)
+    pk, t0k, t1k, t2k = fetch_pt_xk(pt_list[tid], bodies)
+    
+    t = pt_collision_time(p, t0, t1, t2, pk, t0k, t1k, t2k)
+    if t < 1.0:
+        wp.atomic_min(toi, 0, t)
+
+@wp.kernel
+def toi_ee(bodies: wp.array(dtype = AffineBody), ee_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
+
+    tid = wp.tid()
+    ea0, ea1, eb0, eb1 = fetch_ee(ee_list[tid], bodies)
+    ea0k, ea1k, eb0k, eb1k = fetch_ee_xk(ee_list[tid], bodies)
+    
+    t = ee_collision_time(ea0, ea1, eb0, eb1, ea0k, ea1k, eb0k, eb1k)
+    if t < 1.0:
+        wp.atomic_min(toi, 0, t)
+
+
+        
+@wp.func
+def verify_root_pt(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
+    beta, gamma = beta_gamma_pt(x0, x1, x2, x3)
+    cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 # edge edge  distance
+    return cond
+
+@wp.func
+def verify_root_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
+    beta, gamma = beta_gamma_ee(x0, x1, x2, x3)
+    cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0
+    return cond
+
 @wp.func
 def build_and_solve_4_points_coplanar(
     p0_t0: wp.vec3, p1_t0: wp.vec3, p2_t0: wp.vec3, p3_t0: wp.vec3,
@@ -80,7 +132,7 @@ def cubic_binomial(a: wp.vec3, b:wp.vec3):
 
 
 @wp.func
-def collision_time(
+def pt_collision_time(
     p0_t0: wp.vec3, p1_t0: wp.vec3, p2_t0: wp.vec3, p3_t0: wp.vec3,
 
     p0_t1: wp.vec3, p1_t1: wp.vec3, p2_t1: wp.vec3, p3_t1: wp.vec3
@@ -88,7 +140,7 @@ def collision_time(
     n_roots, roots = build_and_solve_4_points_coplanar(p0_t0, p1_t0, p2_t0, p3_t0, p0_t1, p1_t1, p2_t1, p3_t1)
 
     root = float(0.0)
-    true_root = False
+    true_root = bool(False)
     for i in range(n_roots):
         root = roots[i]
         p0t = wp.lerp(p0_t0, p0_t1, root)
@@ -114,7 +166,7 @@ def ee_collision_time(
     n_roots, roots = build_and_solve_4_points_coplanar(ei0_e0, ei0_e1, ei1_e0, ei1_e1, ej0_e0, ej0_e1, ej1_e0, ej1_e1)
 
     root = float(0.0)
-    true_root = wp.bool(False)
+    true_root = bool(False)
     for i in range(n_roots):
         root = roots[i]
         ei0 = wp.lerp(ei0_e0, ei0_e1, root)

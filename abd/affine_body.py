@@ -1,6 +1,6 @@
-from simulator.base import BaseSimulator
 from simulator.scene import KineticMesh, Scene
-from const_params import *
+import warp as wp
+import numpy as np
 import igl
 
 @wp.struct
@@ -43,6 +43,8 @@ class AffineBody:
     id: int
     x0: wp.array(dtype = wp.vec3)       # rest shape
     x: wp.array(dtype = wp.vec3)        # current position
+    xk: wp.array(dtype = wp.vec3)
+                # line search t1 position
     x_view: wp.array(dtype = wp.vec3)   # view position
     
     triangles: wp.array2d(dtype = int)  # triangle indices
@@ -71,6 +73,7 @@ class AffineMesh(KineticMesh):
         ab.id = id
         ab.x0 = wp.zeros(self.V.shape[0], dtype = wp.vec3)
         ab.x = wp.zeros_like(ab.x0)
+        ab.xk = wp.zeros_like(ab.x0)
         ab.x_view = wp.zeros_like(ab.x0)
 
         ab.triangles = wp.zeros(self.F.shape, dtype = int)
@@ -85,6 +88,7 @@ class AffineMesh(KineticMesh):
         Vt = self.V @ self.A.T + self.p.reshape(1, 3)
         ab.x.assign(Vt)
         ab.x_view.assign(Vt)
+        ab.xk.assign(Vt)
 
         return ab
 

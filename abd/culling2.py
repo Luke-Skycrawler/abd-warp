@@ -188,7 +188,7 @@ class BvhBuilder:
         uppers = []
         lowers = []
         for b in bodies:
-            vnp = b.x.numpy()
+            vnp = b.xk.numpy()
             upper = np.max(vnp, axis = 0)
             lower = np.min(vnp, axis = 0)
             uppers.append(upper)
@@ -207,7 +207,6 @@ class BvhBuilder:
         bvh_traj.refit()
         return bvh_traj
 
-    
 
 @wp.kernel
 def intersection_bodies(

@@ -6,13 +6,13 @@ from warp.optim.linear import bicgstab
 from sparse import BSR, bsr_empty
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
 from orthogonal_energy import InertialEnergy
-from ipc import IPCContactEnergy
+from ipc import IPCContactEnergy, ipc_term_vg
 from culling import BvhBuilder, intersection_bodies, cull, cull_vg
 from simulator.fenwick import list_with_meta, insert_overload, ListMeta, compress
 from typing import List
 # temporary
 from orthogonal_energy import _init, _set_triplets
-
+from ccd import toi_vg, toi_ee, toi_pt
 class AffineBodySimulator(BaseSimulator):
 
     n_tmp = 5
@@ -67,17 +67,30 @@ class AffineBodySimulator(BaseSimulator):
         self.ipc_contact = IPCContactEnergy()
         self.bb = BvhBuilder()
 
-        self.bvh_triangles: List[wp.Bvh] = []
-        self.bvh_edges: List[wp.Bvh] = []
-        self.bvh_points: List[wp.Bvh] = []
-            
         # self.affine_bodies = wp.array([ko.warp_affine_body() for ko in self.scene.kinetic_objects], dtype = AffineBody)
         self.affine_bodies = [ko.warp_affine_body(i) for i, ko in enumerate(self.scene.kinetic_objects)]
         self.warp_affine_bodies = wp.array(self.affine_bodies, dtype = AffineBody)
+
+        self.bvh_bodies: wp.Bvh = self.bb.build_body_bvh(self.affine_bodies, dhat * 0.5)
+        self.bvh_body_traj: wp.Bvh = self.bb.build_body_bvh(self.affine_bodies, dhat * 0.5)
+
+        self.bvh_triangles: List[wp.Bvh] = []
+        self.bvh_edges: List[wp.Bvh] = []
+        self.bvh_points: List[wp.Bvh] = []
+
+        self.bvh_triangle_traj: List[wp.Bvh] = []
+        self.bvh_edge_traj: List[wp.Bvh] = []
+        self.bvh_point_traj: List[wp.Bvh] = []
+
+            
         for b in self.affine_bodies:
             self.bvh_triangles.append(self.bb.bulid_triangle_bvh(b.x, b.triangles, 0.0))
             self.bvh_edges.append(self.bb.build_edge_bvh(b.x, b.edges, dhat * 0.5))
             self.bvh_points.append(self.bb.build_point_bvh(b.x, dhat))
+
+            self.bvh_triangle_traj.append(self.bb.bulid_triangle_bvh(b.x, b.triangles, 0.0))
+            self.bvh_edge_traj.append(self.bb.build_edge_bvh(b.x, b.edges, dhat * 0.5))
+            self.bvh_point_traj.append(self.bb.build_point_bvh(b.x, dhat))
 
     @classmethod
     def simulator_args(cls):
@@ -105,7 +118,7 @@ class AffineBodySimulator(BaseSimulator):
 
     def compute_energy(self, alpha = 0.0):
         self.update_qk(alpha)
-        self.update_mesh_vertex("x", line_search = True)
+        self.update_mesh_vertex("xk")
 
         ij_list, pt_list, ee_list, vg_list = self.collision_set()
 
@@ -129,28 +142,50 @@ class AffineBodySimulator(BaseSimulator):
                 break
             alpha *= 0.5
         return alpha, E1
-
-    def collision_set(self):
-        bvh_bodies = self.bb.build_body_bvh(self.affine_bodies, dhat * 0.5)
-        ij_list, ij_meta = list_with_meta(wp.vec2i, 4, 1)
+    
+    
+    def ij_list(self, bvh_bodies: wp.Bvh):
+        ij_list, ij_meta = list_with_meta(wp.vec2i, 256, self.n_bodies)
         wp.launch(intersection_bodies, self.n_bodies, inputs = [bvh_bodies.id, bvh_bodies.lowers, bvh_bodies.uppers, ij_meta, ij_list])
 
         ij_list = compress(ij_list, ij_meta)
-        
+        return ij_list
+
+    def trajectory_intersection_set(self):
+        self.bb.body_bvh_to_traj(self.affine_bodies, self.bvh_bodies, self.bvh_body_traj)
+        ij_list = self.ij_list(self.bvh_body_traj)
+
+        for i in range(self.n_bodies):
+            b = self.affine_bodies[i]
+            self.bb.triangle_bvh_to_traj(b.xk, b.triangles, self.bvh_triangles[i], self.bvh_triangle_traj[i])
+            self.bb.edge_bvh_to_traj(b.xk, b.edges, self.bvh_edges[i], self.bvh_edge_traj[i])
+            self.bb.point_bvh_to_traj(b.xk, self.bvh_points[i], self.bvh_point_traj[i])
+
+        ee_list = cull(ij_list, self.bvh_edge_traj)
+        pt_list = cull(ij_list, self.bvh_triangle_traj, self.bvh_point_traj)
+
+        vg_list = cull_vg(self.bvh_body_traj.lowers, self.bvh_point_traj, self.warp_affine_bodies)
+        return ij_list, pt_list, ee_list, vg_list
+
+    def collision_set(self):
+
+        bvh_bodies = self.bvh_bodies
+        self.bb.update_body_bvh(self.affine_bodies, dhat * 0.5, bvh_bodies)
+        ij_list = self.ij_list(bvh_bodies)
+
         for b, t, e, p in zip(self.affine_bodies, self.bvh_triangles, self.bvh_edges, self.bvh_points):
             self.bb.update_triangle_bvh(b.x, b.triangles, 0.0, t)
             self.bb.update_edge_bvh(b.x, b.edges, dhat * 0.5, e)
             self.bb.update_point_bvh(b.x, dhat, p)
-        
 
         ee_list = cull(ij_list, self.bvh_edges)
         pt_list = cull(ij_list, self.bvh_triangles, self.bvh_points)
 
-        vg_list = cull_vg(bvh_bodies.lowers, self.bvh_points)
+        vg_list = cull_vg(bvh_bodies.lowers, self.bvh_points, self.warp_affine_bodies)
         return ij_list, ee_list, pt_list, vg_list
     
     def V_gets_V(self, states):
-        pass
+        self.update_mesh_vertex("x")
 
     def step(self, frame = 1):
         states = self.states
@@ -163,6 +198,9 @@ class AffineBodySimulator(BaseSimulator):
         self.q_gets_q0()
         self.V_gets_V(states)
         ij_list, ee_list, pt_list, vg_list = self.collision_set()
+        if vg_list.shape[0] > 0:
+            print(f"vg list size = {vg_list.shape[0]}, dhat = {dhat}")
+            print(f"vg list: {vg_list.numpy()}")
         E0 = self.compute_energy(alpha = 0.0)
         # self.blocks = wp.zeros(shape = ((self.n_bodies + ij_list.shape[0] * 2) * 16, ), dtype = wp.mat33)
         self.blocks.zero_()
@@ -174,24 +212,31 @@ class AffineBodySimulator(BaseSimulator):
             # ipc_contact.gradient([g, states, ij_list, ee_list, pt_list])
             # ipc_contact.hessian([self.blocks, states, ij_list, ee_list, pt_list])
 
-            # ipc_contact.gh([vg_list, self.warp_affine_bodies, g, self.blocks])
+            ipc_contact.gh([vg_list, self.warp_affine_bodies, g, self.blocks])
 
+            rows.zero_()
+            cols.zero_()
             wp.launch(_set_triplets, self.n_bodies, inputs = [self.n_bodies,  ij_list.shape[0], ij_list, rows, cols])
             bsr_set_from_triplets(hess, rows, cols, self.blocks)
             bicgstab(hess, g, dq, 1e-4)
-
+            if vg_list.shape[0] > 0:
+                print(f"debugging: dq = {dq.numpy()}")
+                print(f"debugging: g = {g.numpy()}") 
+                # print(f"H = {hess}")
             # print(bsr.blocks.numpy())
             # print(hess.values.numpy())
             # print(g.numpy())
             # print(dq.numpy())
             alpha_cap = self.ccd(states, dq)
             # alpha, E0 = self.line_search(alpha_cap, E0)
-            alpha, E0 = 1.0, E0
+            alpha, E0 = alpha_cap, E0
 
             
             self.update_q(alpha)
             
             it += 1
+            if alpha < 1.0: 
+                print(f"iteration {it}, cap, alpha = {alpha_cap}, {alpha}, energy = {E0}")
             cond = self.dot(g, g) < tol
             if cond or it > 1:
                 # fixme: temp
@@ -200,16 +245,33 @@ class AffineBodySimulator(BaseSimulator):
         self.update_q0qdot()
         self.update_mesh_vertex("x_view")
         # print("a dot = ", states.Adot.numpy())
-        print('frame: ', frame, 'energy: ', E0)
+        print(f"frame {frame} finished")
 
     def ccd(self, states, dq):
-        return 1.0
+        self.update_qk(1.0)
+        self.update_mesh_vertex("xk")
+        ij_list, ee_list, pt_list, vg_list = self.trajectory_intersection_set()
 
-    def update_mesh_vertex(self, field = "x", line_search = False):
+        toi = wp.ones(1, dtype = float)
+        dim_vg = vg_list.shape[0]
+        dim_ee = ee_list.shape[0]
+        dim_pt = pt_list.shape[0]
+        wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_affine_bodies, vg_list, toi])
+
+        wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
+
+        wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
+
+        t = toi.numpy()[0] 
+        if t < 1.0:
+            t *= 0.9
+        return t
+
+    def update_mesh_vertex(self, field = "x"):
         abs = self.affine_bodies
     
-        Anp = self.states.A0.numpy() if field == "x_view" else self.states.Ak.numpy() if line_search else self.states.A.numpy()
-        pnp = self.states.p0.numpy() if field == "x_view" else self.states.pk.numpy() if line_search else self.states.p.numpy()
+        Anp = self.states.A0.numpy() if field == "x_view" else self.states.Ak.numpy() if field == "xk" else self.states.A.numpy()
+        pnp = self.states.p0.numpy() if field == "x_view" else self.states.pk.numpy() if field == "xk" else self.states.p.numpy()
 
         for i, ab in enumerate(abs):
             x0 = ab.x0.numpy()
@@ -246,9 +308,9 @@ def _update_q(states: AffineBodyStates, dq: wp.array(dtype = wp.vec3), alpha: fl
 def _update_qk(states: AffineBodyStates, dq: wp.array(dtype = wp.vec3), alpha: float):
     i = wp.tid()
     states.pk[i] = states.p[i] - dq[i * 4 + 0] * alpha
-    q1 = states.Ak[i][0] - dq[i * 4 + 1] * alpha
-    q2 = states.Ak[i][1] - dq[i * 4 + 2] * alpha
-    q3 = states.Ak[i][2] - dq[i * 4 + 3] * alpha
+    q1 = states.A[i][0] - dq[i * 4 + 1] * alpha
+    q2 = states.A[i][1] - dq[i * 4 + 2] * alpha
+    q3 = states.A[i][2] - dq[i * 4 + 3] * alpha
     states.Ak[i] = wp.transpose(wp.mat33(q1, q2, q3))
 
 @wp.kernel

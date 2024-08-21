@@ -163,9 +163,10 @@ def compress(list, meta: ListMeta):
     # ft.prefix_fast(meta.count)
     # ft.
     new_shape = meta.count_overflow.numpy()[0]
-    new_shape = min(list.shape[0], max(new_shape, 1))
+    new_shape = min(list.shape[0], max(new_shape, 0))
     new_list = wp.zeros(shape = (new_shape, ), dtype = list.dtype)
-    wp.copy(new_list, list, count = new_shape)
+    if new_shape > 0:
+        wp.copy(new_list, list, count = new_shape)
     return new_list
 
 
