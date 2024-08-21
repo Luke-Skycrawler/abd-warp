@@ -147,10 +147,18 @@ def _set_triplets(n_bodies: int, n_ij: int, ij_list: wp.array(dtype = wp.vec2i),
         J = i
     else:
         # off-diagonal blocks, upper triangle index range [n_ij, n_ij + n_bodies), lower triangle at [n_ij + n_bodies, n_bodies + 2 n_ij)
-        idx = wp.select(i < n_bodies + n_ij, i - n_bodies - n_ij, i - n_bodies)
-        I = ij_list[idx][0]
-        J = ij_list[idx][1]
-
+        if i < n_bodies + n_ij: 
+            # upper triangle, I < J 
+            # it is ensured that element <a,b> in ij_list has a < b 
+            idx = i - n_bodies
+            I = ij_list[idx][0]
+            J = ij_list[idx][1]
+        else: 
+            # lower triangle, I > J
+            idx = i - n_bodies - n_ij
+            I = ij_list[idx][1]
+            J = ij_list[idx][0]
+            
     for ii in range(4):
         for jj in range(4):
             rows[os + ii + jj  *4] = ii + 4 * I
