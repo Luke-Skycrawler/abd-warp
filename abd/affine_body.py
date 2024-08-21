@@ -118,6 +118,24 @@ def fetch_pt(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)):
     return p, t0, t1, t2
 
 @wp.func
+def fetch_pt_x0(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 
+    I = ijpt[0]
+    J = ijpt[1]
+
+    bi = bodies[I]
+    bj = bodies[J]
+    pid = ijpt[3]
+    tid = ijpt[4]
+
+    T = bj.triangles[tid]
+
+    p = bi.x0[pid]
+    t0 = bj.x0[T[0]]
+    t1 = bj.x0[T[1]]
+    t2 = bj.x0[T[2]]
+    return p, t0, t1, t2
+
+@wp.func
 def fetch_pt_xk(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 
     I = ijpt[0]
     J = ijpt[1]
@@ -174,6 +192,27 @@ def fetch_ee_xk(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
 
     ej0 = bj.xk[EJ[0]]
     ej1 = bj.xk[EJ[1]]
+
+    return ei0, ei1, ej0, ej1
+
+@wp.func
+def fetch_ee_x0(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
+    I = ijee[0]
+    J = ijee[1]
+
+    bi = bodies[I]
+    bj = bodies[J]
+    eiid = ijee[3]
+    ejid = ijee[4]
+
+    EI = bi.edges[eiid]
+    EJ = bj.edges[ejid]
+
+    ei0 = bi.x0[EI[0]]
+    ei1 = bi.x0[EI[1]]
+
+    ej0 = bj.x0[EJ[0]]
+    ej1 = bj.x0[EJ[1]]
 
     return ei0, ei1, ej0, ej1
 

@@ -1,5 +1,5 @@
 import warp as wp
-from vf import dalpha_dx, dbeta_dx, dgamma_dx
+from psd.vf import dalpha_dx, dbeta_dx, dgamma_dx
 
 @wp.kernel
 def dcdx_delta_kernel(q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = float), x: wp.array(dtype = wp.vec3), t: wp.array2d(dtype = float), ret: wp.array2d(dtype = wp.mat33), a: wp.array2d(dtype = wp.vec3)):
