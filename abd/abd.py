@@ -13,6 +13,8 @@ from typing import List
 # temporary
 from orthogonal_energy import _init, _set_triplets
 from ccd import toi_vg, toi_ee, toi_pt
+from typing import Any
+
 class AffineBodySimulator(BaseSimulator):
 
     n_tmp = 5
@@ -112,6 +114,8 @@ class AffineBodySimulator(BaseSimulator):
     def q_gets_q0(self):
         wp.copy(self.states.A, self.states.A0)
         wp.copy(self.states.p, self.states.p0)
+        wp.copy(self.states.Ak, self.states.A0)
+        wp.copy(self.states.pk, self.states.p0)
 
     def proximity_set(self):
         pass
@@ -133,12 +137,14 @@ class AffineBodySimulator(BaseSimulator):
 
         qTg = self.dot(self.dq, self.g)
 
-        alpha = alpha_cap * 0.9 if alpha_cap < 1.0 else 1.0
-
+        alpha = alpha_cap
+        if alpha < 1.0:
+            # pass
+            print(f"debugging line search, alpha cap = {alpha_cap}, dq = {self.dq.numpy()}")
         while True:
             E1 = self.compute_energy(alpha)
             wolfe = E1 < E0 + c1 * alpha * qTg
-            if wolfe:
+            if wolfe or alpha < 0.1:
                 break
             alpha *= 0.5
         return alpha, E1
@@ -168,15 +174,18 @@ class AffineBodySimulator(BaseSimulator):
         return ij_list, pt_list, ee_list, vg_list
 
     def collision_set(self):
+        '''
+        NOTE: all collision detection runs on xk(Ak, pk)
+        '''
 
         bvh_bodies = self.bvh_bodies
         self.bb.update_body_bvh(self.affine_bodies, dhat * 0.5, bvh_bodies)
         ij_list = self.ij_list(bvh_bodies)
 
         for b, t, e, p in zip(self.affine_bodies, self.bvh_triangles, self.bvh_edges, self.bvh_points):
-            self.bb.update_triangle_bvh(b.x, b.triangles, 0.0, t)
-            self.bb.update_edge_bvh(b.x, b.edges, dhat * 0.5, e)
-            self.bb.update_point_bvh(b.x, dhat, p)
+            self.bb.update_triangle_bvh(b.xk, b.triangles, 0.0, t)
+            self.bb.update_edge_bvh(b.xk, b.edges, dhat * 0.5, e)
+            self.bb.update_point_bvh(b.xk, dhat, p)
 
         ee_list = cull(ij_list, self.bvh_edges)
         pt_list = cull(ij_list, self.bvh_triangles, self.bvh_points)
@@ -198,9 +207,6 @@ class AffineBodySimulator(BaseSimulator):
         self.q_gets_q0()
         self.V_gets_V(states)
         ij_list, ee_list, pt_list, vg_list = self.collision_set()
-        if vg_list.shape[0] > 0:
-            print(f"vg list size = {vg_list.shape[0]}, dhat = {dhat}")
-            print(f"vg list: {vg_list.numpy()}")
         E0 = self.compute_energy(alpha = 0.0)
         # self.blocks = wp.zeros(shape = ((self.n_bodies + ij_list.shape[0] * 2) * 16, ), dtype = wp.mat33)
         self.blocks.zero_()
@@ -220,16 +226,17 @@ class AffineBodySimulator(BaseSimulator):
             bsr_set_from_triplets(hess, rows, cols, self.blocks)
             bicgstab(hess, g, dq, 1e-4)
             if vg_list.shape[0] > 0:
-                print(f"debugging: dq = {dq.numpy()}")
-                print(f"debugging: g = {g.numpy()}") 
+                # print(f"debugging: dq = {dq.numpy()}")
+                # print(f"debugging: g = {g.numpy()}") 
+                pass
                 # print(f"H = {hess}")
+
             # print(bsr.blocks.numpy())
             # print(hess.values.numpy())
             # print(g.numpy())
             # print(dq.numpy())
             alpha_cap = self.ccd(states, dq)
-            # alpha, E0 = self.line_search(alpha_cap, E0)
-            alpha, E0 = alpha_cap, E0
+            alpha, E0 = self.line_search(alpha_cap, E0)
 
             
             self.update_q(alpha)
@@ -237,19 +244,24 @@ class AffineBodySimulator(BaseSimulator):
             it += 1
             if alpha < 1.0: 
                 print(f"iteration {it}, cap, alpha = {alpha_cap}, {alpha}, energy = {E0}")
-            cond = self.dot(g, g) < tol
-            if cond or it > 1:
+
+            gTg = self.dot(g, g)
+            cond = gTg < tol
+            # print(f"iteration {it}, |g| = {gTg}")
+            if cond or it >= max_iter:
+            # if cond:
                 # fixme: temp
                 break
 
         self.update_q0qdot()
-        self.update_mesh_vertex("x_view")
+        xmin = self.update_mesh_vertex("x_view")
         # print("a dot = ", states.Adot.numpy())
-        print(f"frame {frame} finished")
+        # print(f"frame {frame} finished, xmin = {xmin}")
 
     def ccd(self, states, dq):
         self.update_qk(1.0)
         self.update_mesh_vertex("xk")
+        self.update_mesh_vertex("x")
         ij_list, ee_list, pt_list, vg_list = self.trajectory_intersection_set()
 
         toi = wp.ones(1, dtype = float)
@@ -258,11 +270,12 @@ class AffineBodySimulator(BaseSimulator):
         dim_pt = pt_list.shape[0]
         wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_affine_bodies, vg_list, toi])
 
-        wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
+        # wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
 
-        wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
+        # wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
 
         t = toi.numpy()[0] 
+        t = max(0.0, min(1.0, t))
         if t < 1.0:
             t *= 0.9
         return t
@@ -272,7 +285,7 @@ class AffineBodySimulator(BaseSimulator):
     
         Anp = self.states.A0.numpy() if field == "x_view" else self.states.Ak.numpy() if field == "xk" else self.states.A.numpy()
         pnp = self.states.p0.numpy() if field == "x_view" else self.states.pk.numpy() if field == "xk" else self.states.p.numpy()
-
+        xmin = None
         for i, ab in enumerate(abs):
             x0 = ab.x0.numpy()
             A = Anp[i].T
@@ -280,6 +293,13 @@ class AffineBodySimulator(BaseSimulator):
 
             x = A @ x0.T + p.reshape(3, 1)
             getattr(ab, field).assign(x.T)
+            _xmin = np.min(x, axis = 1)
+            if i == 0: 
+                xmin = _xmin
+            else:
+                xmin = np.minimum(xmin, _xmin)
+
+        return xmin
 
     def update_q(self, alpha):
         wp.launch(_update_q, self.n_bodies, inputs = [self.states, self.dq, alpha])

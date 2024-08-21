@@ -27,8 +27,8 @@ def energy_inertia(states: AffineBodyStates, e: wp.array(dtype = float)):
     A_tilde = tildeA(states.A0[i], states.Adot[i])
     p_tilde = tildep(states.p0[i], states.pdot[i])
     
-    dqTMdq = norm_M(states.A[i], states.p[i], A_tilde, p_tilde)
-    de = energy_ortho(states.A[i]) * dt * dt + 0.5 * dqTMdq
+    dqTMdq = norm_M(states.Ak[i], states.pk[i], A_tilde, p_tilde)
+    de = energy_ortho(states.Ak[i]) * dt * dt + 0.5 * dqTMdq
     wp.atomic_add(e, 0, de)
 
 @wp.func
@@ -113,7 +113,7 @@ def flattened_gradient_inertia(g: wp.array(dtype = wp.vec3), states: AffineBodyS
 
 @wp.kernel
 def _init(states: AffineBodyStates):
-    states.Adot[0] = wp.skew(wp.vec3(1.0, 0.0, 0.0))
+    states.Adot[0] = wp.skew(wp.vec3(10.0, 0.0, 0.0))
     # states.Adot[0] = wp.mat33(0.0)
     states.A[0] = wp.diag(wp.vec3(1.0))
     states.A0[0] = wp.diag(wp.vec3(1.0))

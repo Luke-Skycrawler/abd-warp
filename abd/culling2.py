@@ -171,7 +171,7 @@ class BvhBuilder:
         uppers = []
         lowers = []
         for b in bodies:
-            vnp = b.x.numpy()
+            vnp = b.xk.numpy()
             upper = np.max(vnp, axis = 0)
             lower = np.min(vnp, axis = 0)
             uppers.append(upper + dialation)

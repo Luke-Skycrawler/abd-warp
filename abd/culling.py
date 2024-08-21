@@ -38,11 +38,11 @@ def cull_vg(lowers, _bvh_list, bodies):
 
         
 @wp.kernel
-def intersection_ground(lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dtype = BvhStruct), vg_list: wp.array(dtype = wp.vec2i), prim_meta: ListMeta, dhat: float):
+def intersection_ground(lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), prim_meta: Any, dhat: float):
     i = wp.tid()
-    if lowers[i][1] < 0.5 * dhat:
+    if lowers[i][1] < 0.5 * dhat + ground:
         bound = 1e3
-        u = wp.vec3(bound, 0.0, bound)
+        u = wp.vec3(bound, ground, bound)
         l = wp.vec3(-bound, -bound, -bound)
         id = bvh_list[i].id
         query = wp.bvh_query_aabb(id, l, u)
@@ -59,7 +59,7 @@ def intersection_ground(lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dt
 
 
 @wp.kernel
-def intersection_prims(ij_list: wp.array(dtype = wp.vec2i), bvhs1: wp.array(dtype = BvhStruct), bvhs2: wp.array(dtype = BvhStruct), prim_list: wp.array(dtype = vec5i), prim_meta: ListMeta, pt: int):
+def intersection_prims(ij_list: wp.array(dtype = wp.vec2i), bvhs1: wp.array(dtype = Any), bvhs2: wp.array(dtype = Any), prim_list: wp.array(dtype = vec5i), prim_meta: Any, pt: int):
     i = wp.tid()
     ii = wp.select(pt == 1, i, i // 2)
     ij = ij_list[ii]

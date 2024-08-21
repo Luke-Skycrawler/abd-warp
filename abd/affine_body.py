@@ -2,7 +2,7 @@ from simulator.scene import KineticMesh, Scene
 import warp as wp
 import numpy as np
 import igl
-vec5i = wp.types.vector(length = 5, dtype = int)
+from const_params import ground, vec5i
 
 @wp.struct
 class AffineBodyStates:
@@ -97,7 +97,7 @@ class AffineMesh(KineticMesh):
 
 @wp.func
 def vg_distance(v: wp.vec3) -> float:
-    return v[1]
+    return v[1] - ground
 
 @wp.func
 def fetch_pt(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 

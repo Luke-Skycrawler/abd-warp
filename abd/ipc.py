@@ -3,7 +3,7 @@ from typing import Any
 from psd.ee import beta_gamma_ee, C_ee
 from psd.hl import signed_distance
 from psd.vf import beta_gamma_pt, C_vf
-from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance
+from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk
 
 
 class IPCContactEnergy:
@@ -16,8 +16,8 @@ class IPCContactEnergy:
         vg_list = inputs[2]
         E = wp.zeros((1, ), dtype =float)
         inputs.append(E)
-        wp.launch(ipc_energy_ee, dim = ee_list.shape, inputs = inputs)
-        wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
+        # wp.launch(ipc_energy_ee, dim = ee_list.shape, inputs = inputs)
+        # wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
         wp.launch(ipc_energy_vg, dim = vg_list.shape, inputs = inputs)
         return E.numpy()[0]
 
@@ -64,7 +64,7 @@ def barrier_derivative2(d: float) -> float:
 def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
     i = wp.tid()
     ijee = ee_list[i]
-    ea0, ea1, eb0, eb1 = fetch_ee(ijee, bodies)
+    ea0, ea1, eb0, eb1 = fetch_ee_xk(ijee, bodies)
     beta, gamma = beta_gamma_ee(ea0, ea1, eb0, eb1)
 
     cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 # edge edge  distance
@@ -84,7 +84,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
     I = ip[0]
     bi = bodies[I]
     pid = ip[1]
-    p = bi.x[pid]
+    p = bi.xk[pid]
 
     d = vg_distance(p)
     wp.atomic_add(E, 0, barrier(d * d))
@@ -92,7 +92,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
 @wp.kernel
 def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
     i = wp.tid()
-    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
+    p, t0, t1, t2 = fetch_pt_xk(pt_list[i], bodies)
 
     beta, gamma = beta_gamma_pt(p, t0, t1, t2)
     cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 and (beta + gamma) < 1.0  # point triangle. the projection of the point is inside the triangle
