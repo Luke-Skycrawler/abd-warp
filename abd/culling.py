@@ -1,6 +1,6 @@
 from const_params import *
 from affine_body import AffineBody
-from typing import List
+from typing import List, Any
 from simulator.fenwick import ListMeta, insert_overload, list_with_meta, compress
 
 from culling2 import *
@@ -30,7 +30,7 @@ def cull(ij_list, _bvh_list1, _bvh_list2 = None):
 def cull_vg(lowers, _bvh_list, bodies):
     bvh_list = extract_bvh_list(_bvh_list)
     prim_list, prim_meta = list_with_meta(wp.vec2i, 256, lowers.shape[0])
-    wp.launch(intersection_ground, dim = lowers.shape[0], inputs = [bodies, lowers, bvh_list, prim_list, prim_meta, dhat])
+    wp.launch(intersection_ground, dim = lowers.shape[0], inputs = [lowers, bvh_list, prim_list, prim_meta, dhat])
 
     prim_list = compress(prim_list, prim_meta)
 
@@ -38,7 +38,7 @@ def cull_vg(lowers, _bvh_list, bodies):
 
         
 @wp.kernel
-def intersection_ground(bodies: wp.array(dtype = AffineBody), lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dtype = BvhStruct), vg_list: wp.array(dtype = wp.vec2i), prim_meta: ListMeta, dhat: float):
+def intersection_ground(lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dtype = BvhStruct), vg_list: wp.array(dtype = wp.vec2i), prim_meta: ListMeta, dhat: float):
     i = wp.tid()
     if lowers[i][1] < 0.5 * dhat:
         bound = 1e3

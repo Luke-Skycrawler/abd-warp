@@ -1,14 +1,12 @@
 from const_params import *
 from cubic_roots import cubic_roots
-from fetch_utils import vg_distance
-
 from psd.ee import beta_gamma_ee
 from psd.vf import beta_gamma_pt
-from affine_body import AffineBody
-from fetch_utils import fetch_vertex, fetch_xk, fetch_ee, fetch_pt, fetch_pt_xk, fetch_ee_xk
+from affine_body import fetch_vertex, fetch_xk, fetch_ee, fetch_pt, fetch_pt_xk, fetch_ee_xk, vg_distance
+from typing import Any
 
 @wp.kernel
-def toi_vg(bodies: wp.array(dtype = AffineBody), vg_list: wp.array(dtype = wp.vec2i), toi: wp.array(dtype = float)):
+def toi_vg(bodies: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), toi: wp.array(dtype = float)):
 
     tid = wp.tid()
     xt0 = fetch_vertex(vg_list[tid], bodies)
@@ -19,7 +17,7 @@ def toi_vg(bodies: wp.array(dtype = AffineBody), vg_list: wp.array(dtype = wp.ve
         wp.atomic_min(toi, 0, t)
 
 @wp.kernel
-def toi_pt(bodies: wp.array(dtype = AffineBody), pt_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
+def toi_pt(bodies: wp.array(dtype = Any), pt_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
 
     tid = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[tid], bodies)
@@ -30,7 +28,7 @@ def toi_pt(bodies: wp.array(dtype = AffineBody), pt_list: wp.array(dtype = vec5i
         wp.atomic_min(toi, 0, t)
 
 @wp.kernel
-def toi_ee(bodies: wp.array(dtype = AffineBody), ee_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
+def toi_ee(bodies: wp.array(dtype = Any), ee_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
 
     tid = wp.tid()
     ea0, ea1, eb0, eb1 = fetch_ee(ee_list[tid], bodies)

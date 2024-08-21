@@ -1,10 +1,9 @@
 from const_params import *
-from affine_body import AffineBody, AffineBodyStates
-
+from typing import Any
 from psd.ee import beta_gamma_ee, C_ee
 from psd.hl import signed_distance
 from psd.vf import beta_gamma_pt, C_vf
-from fetch_utils import fetch_ee, fetch_pt, vg_distance
+from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance
 
 
 class IPCContactEnergy:
@@ -62,7 +61,7 @@ def barrier_derivative2(d: float) -> float:
     
 
 @wp.kernel
-def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
+def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
     i = wp.tid()
     ijee = ee_list[i]
     ea0, ea1, eb0, eb1 = fetch_ee(ijee, bodies)
@@ -79,7 +78,7 @@ def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
         # do nothing. Caught by point-triangle distance instead 
 
 @wp.kernel
-def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
+def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
     i = wp.tid()
     ip = vg_list[i]
     I = ip[0]
@@ -91,7 +90,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
     wp.atomic_add(E, 0, barrier(d * d))
 
 @wp.kernel
-def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), E: wp.array(dtype = float)):
+def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
 
@@ -109,7 +108,9 @@ def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
 
     
 @wp.kernel
-def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33)):
+def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), 
+                bodies: wp.array(dtype = Any), 
+                g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33)):
     i = wp.tid()
 
     col = vg_list[i]
@@ -140,7 +141,7 @@ def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Af
             
 
 @wp.kernel
-def ipc_term_pt(nij: int, pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = AffineBody), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33), states: AffineBodyStates):
+def ipc_term_pt(nij: int, pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), g: wp.array(dtype = wp.vec3), blocks: wp.array(dtype = wp.mat33)):
     i = wp.tid()
 
     n_bodies = bodies.shape[0]
@@ -156,6 +157,28 @@ def ipc_term_pt(nij: int, pt_list: wp.array(dtype = vec5i), bodies: wp.array(dty
 
 
 
+
+if __name__ == "__main__":
+
+    wp.init()
+    vg_list = wp.zeros((1,), dtype = wp.vec2i)
+    _bodies = []
+    a = AffineBody()
+    a.x = wp.zeros((1, ), dtype = wp.vec3)
+    a.x0 = wp.zeros((1, ), dtype = wp.vec3)
+    a.xk = wp.zeros((1, ), dtype = wp.vec3)
+    a.x_view = wp.zeros((1, ), dtype = wp.vec3)
+    a.triangles = wp.zeros((1, 3), dtype = int)
+    a.edges = wp.zeros((1, 2), dtype = int)
+
+    _bodies.append(a)
+    bodies = wp.array(_bodies, dtype = AffineBody)
+
+    g = wp.zeros((4, ), dtype = wp.vec3)
+    blocks = wp.zeros((16, ), dtype = wp.mat33)
+
+    wp.launch(ipc_term_vg, (1, ), inputs = [vg_list, bodies, g, blocks])
+    # wp.launch(ipc_term_vg, (1, ), inputs = [vg_list, g, blocks])
 
 
     
