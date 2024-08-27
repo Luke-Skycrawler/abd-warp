@@ -49,7 +49,8 @@ class RawMeshFromFile:
         else:
             '''load obj'''
             vertices, indices = igl.read_triangle_mesh(folder + file)
-
+            indices = np.array(indices, dtype = int).reshape(-1, 3)
+            # vertices, _, _, indices, _, _ = igl.read_obj("my_model.obj")
         self.V, self.F = vertices, indices
 
 if __name__ == "__main__":

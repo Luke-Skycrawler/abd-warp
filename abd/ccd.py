@@ -43,7 +43,7 @@ def toi_ee(bodies: wp.array(dtype = Any), ee_list: wp.array(dtype = vec5i), toi:
 @wp.func
 def verify_root_pt(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     beta, gamma = beta_gamma_pt(x0, x1, x2, x3)
-    cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 # edge edge  distance
+    cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 and 0.0 < beta + gamma < 1.0
     return cond
 
 @wp.func

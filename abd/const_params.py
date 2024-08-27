@@ -22,3 +22,8 @@ ground = wp.constant(-0.5)
 
 mass = 1e3
 I0 = 1e2
+
+# switches to enable/disable contacts
+pt = True
+ee = False
+vg = True

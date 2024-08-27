@@ -139,8 +139,8 @@ class AffineBodySimulator(BaseSimulator):
 
         alpha = alpha_cap
         if alpha < 1.0:
-            # pass
-            print(f"debugging line search, alpha cap = {alpha_cap}, dq = {self.dq.numpy()}")
+            pass
+            # print(f"debugging line search, alpha cap = {alpha_cap}, dq = {self.dq.numpy()}")
         while True:
             E1 = self.compute_energy(alpha)
             wolfe = E1 < E0 + c1 * alpha * qTg
@@ -212,7 +212,7 @@ class AffineBodySimulator(BaseSimulator):
             self.V_gets_V(states)
             ij_list, ee_list, pt_list, vg_list = self.collision_set()
             nij = ij_list.shape[0]
-            
+
             self.blocks.zero_()
             inertia.gradient(g, states)
             inertia.hessian(self.blocks, states)
@@ -270,11 +270,12 @@ class AffineBodySimulator(BaseSimulator):
         dim_vg = vg_list.shape[0]
         dim_ee = ee_list.shape[0]
         dim_pt = pt_list.shape[0]
-        wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_affine_bodies, vg_list, toi])
-
-        # wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
-
-        # wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
+        if vg: 
+            wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_affine_bodies, vg_list, toi])
+        if ee:
+            wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
+        if pt:
+            wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
 
         t = toi.numpy()[0] 
         t = max(0.0, min(1.0, t))

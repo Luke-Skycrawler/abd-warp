@@ -4,7 +4,7 @@ from psd.ee import beta_gamma_ee, C_ee, dceedx_s
 from psd.hl import signed_distance, eig_Hl_tid, gl
 from psd.vf import beta_gamma_pt, C_vf, dcvfdx_s
 from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk, fetch_pt_x0, fetch_ee_x0
-
+from ccd import verify_root_pt, verify_root_ee
 
 class IPCContactEnergy:
     def __init__(self) -> None:
@@ -16,9 +16,12 @@ class IPCContactEnergy:
         vg_list = inputs[2]
         E = wp.zeros((1, ), dtype =float)
         inputs.append(E)
-        # wp.launch(ipc_energy_ee, dim = ee_list.shape, inputs = inputs)
-        # wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
-        wp.launch(ipc_energy_vg, dim = vg_list.shape, inputs = inputs)
+        if ee:
+            wp.launch(ipc_energy_ee, dim = ee_list.shape, inputs = inputs)
+        if pt:
+            wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
+        if vg:
+            wp.launch(ipc_energy_vg, dim = vg_list.shape, inputs = inputs)
         return E.numpy()[0]
 
     def gradient(self, inputs):
@@ -54,11 +57,24 @@ def barrier_derivative(d: float) -> float:
 
     return ret
 
+def barrier_derivative_np(d: float) -> float:
+    ret = 0.0
+    if d < d2hat:
+        ret = kappa * (d2hat - d) * (2.0 * np.log(d / d2hat) + (d - d2hat) / d) / (d2hat * d2hat)
+
+    return ret
+
 @wp.func
 def barrier_derivative2(d: float) -> float:
     ret = 0.0
     if d < d2hat:
         ret = -kappa * (2.0 * wp.log(d / d2hat) + (d - d2hat) / d + (d - d2hat) * (2.0 / d + d2hat / (d * d))) / (d2hat * d2hat)
+    return ret
+
+def barrier_derivative2_np(d: float) -> float:
+    ret = 0.0
+    if d < d2hat:
+        ret = -kappa * (2.0 * np.log(d / d2hat) + (d - d2hat) / d + (d - d2hat) * (2.0 / d + d2hat / (d * d))) / (d2hat * d2hat)
     return ret
 
     
@@ -167,19 +183,32 @@ def extract_g(Q, dcdx, Jp, Jt):
     g = np.zeros(24)
     g[:12] = gp
     g[12:] = gt
-    return g
+    return g12, g
+
+@wp.kernel
+def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
+    i = wp.tid()
+    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
+
+    true_root = verify_root_pt(p, t0, t1, t2)
+    valid[i] = true_root
+    e0p, e1p, e2p = C_vf(p, t0, t1, t2)
+    d0 = signed_distance(e0p, e1p, e2p)
+    d[i] = d0 * d0
 
 
 def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     npt = pt_list.shape[0]
     n_bodies = bodies.shape[0]
-
     Q = wp.zeros((npt, 5 * 3), dtype = wp.vec3)
     Lam = wp.zeros((npt, 5), dtype = float)
     dcdx = wp.zeros((npt, ), dtype = mat34)
     Jt = wp.zeros((npt, ), dtype = mat34)
     Jp = wp.zeros((npt, ), dtype = wp.vec4) 
+    valid = wp.zeros((npt, ), dtype = wp.bool)
+    d2 = wp.zeros((npt,), dtype = float)
 
+    wp.launch(_mask_valid, dim = (npt, ), inputs = [pt_list, bodies, valid, d2])
     wp.launch(_Q_lambda_pt, dim = (npt, ), inputs = [pt_list, bodies, Q, Lam])
     wp.launch(_dcdx, dim = (npt, ), inputs = [pt_list, bodies, dcdx])
     wp.launch(extract_JpJt, dim = (npt,), inputs=[pt_list, bodies, Jp, Jt])
@@ -189,24 +218,45 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     Jtnp = Jt.numpy()
     Lamnp = Lam.numpy()
     dcdxnp = dcdx.numpy()
+    validnp = valid.numpy()
+    d2np = d2.numpy()
     
     gnp = np.zeros((npt, 24))
     Hinp = np.zeros((npt, 12, 12))
     Hjnp = np.zeros((npt, 12, 12))
     Hijnp = np.zeros((npt, 12, 12))
-
+    if npt > 0:
+        # print(f"colision detected, list = {pt_list.numpy()}")
+        print(f"colision detected")
+        print(f"d2 < dhat, valid: {validnp}")
+        print(f"d2 = {d2np}")
     for i in range(npt):
-        g = extract_g(Qnp[i], dcdxnp[i], Jpnp[i], Jtnp[i])
+        # if validnp[i]:
+        # if True:
+        if d2np[i] < d2hat:
+            pt_grad, g = extract_g(Qnp[i], dcdxnp[i], Jpnp[i], Jtnp[i])
 
-        qq = extract_Q(Qnp[i])
-        Hl_pos = QLQinv(qq, Lamnp[i])
-        H12 = dcTHldc(dcdxnp[i], Hl_pos)
-        # H12 tested
-        Hi, Hj, Hij = JTH12J(H12, Jpnp[i], Jtnp[i])
-        gnp[i] = g
-        Hinp[i] = Hi
-        Hjnp[i] = Hj
-        Hijnp[i] = Hij
+            qq = extract_Q(Qnp[i])
+            Hl_pos = QLQinv(qq, Lamnp[i])
+            Hpt = dcTHldc(dcdxnp[i], Hl_pos)
+            B_ = barrier_derivative_np(d2np[i])
+            B__ = barrier_derivative2_np(d2np[i])
+            if d2np[i] < d2hat:
+                print(f"pt contact {i}, d^2 = {d2np[i]}")
+                print(f"B. = {B_}")
+                print(f"B.. = {B__}")
+                print(f"g = {g}")
+            else: 
+                print(f"pt contact {i}, d^2 = {d2np[i]}")
+            Hipc = Hpt * B_ + np.outer(pt_grad, pt_grad) * B__ 
+            g *= B_
+            # H12 tested
+            Hi, Hj, Hij = JTH12J(Hipc, Jpnp[i], Jtnp[i])
+
+            gnp[i] = g
+            Hinp[i] = Hi
+            Hjnp[i] = Hj
+            Hijnp[i] = Hij
 
     put_grad(grad, gnp, pt_list)
     put_hess(blocks, Hinp, Hjnp, Hijnp, pt_list, nij, n_bodies)
