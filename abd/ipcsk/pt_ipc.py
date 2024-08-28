@@ -8,7 +8,7 @@ from typing import Any
 from psd.hl import signed_distance, eig_Hl_tid, gl
 import ipctk
 
-ipctk_ref = False
+ipctk_ref = True
 @wp.kernel
 def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
     i = wp.tid()
@@ -134,6 +134,9 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
                 gpt_ipc = ipctk.point_plane_distance_gradient(p, t0, t1, t2)
                 Hpt_ipc = ipctk.point_plane_distance_hessian(p, t0, t1, t2)
                 d2_ipc = ipctk.point_plane_distance(p, t0, t1, t2)
+                # gpt_ipc = ipctk.point_triangle_distance_gradient(p, t0, t1, t2)
+                # Hpt_ipc = ipctk.point_triangle_distance_hessian(p, t0, t1, t2)
+                # d2_ipc = ipctk.point_triangle_distance(p, t0, t1, t2)
                 
                 print(f"valid = {validnp[i]}")
                 print(f"d2 = {d2np[i]}, d2_ipc = {d2_ipc}, diff = {d2np[i] - d2_ipc}")

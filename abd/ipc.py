@@ -11,7 +11,7 @@ from scipy.linalg import eigh
 from ipcsk.energy import ipc_energy_ee, ipc_energy_pt, ipc_energy_vg
 from ipcsk.vg_ipc import ipc_term_vg
 from ipcsk.pt_ipc import ipc_term_pt
-
+from ipcsk.ee_ipc import ipc_term_ee
 class IPCContactEnergy:
     def __init__(self) -> None:
         pass
@@ -57,16 +57,12 @@ class IPCContactEnergy:
         dim = vg_list.shape[0]
 
         highlight = ipc_term_pt(nij, pt_list, bodies, g, blocks)
-        ipc_term_ee(nij, ee_list, bodies, g, blocks)
+        highlight = ipc_term_ee(nij, ee_list, bodies, g, blocks)
         wp.launch(ipc_term_vg, dim = (dim, ), inputs = [vg_list, bodies, g, blocks])
         return highlight
 
     
     
-def ipc_term_ee(nij, ee_list, bodies, g, blocks):
-    if not ee:
-        return
-    return
 
 
 
@@ -147,4 +143,56 @@ if __name__ == "__main__":
 
         ipc_term_pt(1, pt_list, bodies, g, H)
 
-    test1()
+    def test_ee(): 
+        ee_list = wp.zeros((1,), dtype = vec5i)
+        arr = np.array([
+            [0.4360, 0.0259, 0.5497],
+            [0.4353, 0.4204, 0.3303],
+            [0.2046, 0.6193, 0.2997],
+            [0.2668, 0.6211, 0.5291]
+        ])
+
+        _bodies = []
+        a = AffineBody()
+        a.x = wp.zeros((2, ), dtype = wp.vec3)
+        a.x0 = wp.zeros((2, ), dtype = wp.vec3)
+        a.xk = wp.zeros((2, ), dtype = wp.vec3)
+        a.x_view = wp.zeros((2, ), dtype = wp.vec3)
+        a.triangles = wp.zeros((1, 3), dtype = int)
+        a.edges = wp.zeros((1, 2), dtype = int)
+        ax = arr[: 2]
+        a.x.assign(ax)
+        a.x0.assign(ax)
+        a.xk.assign(ax)
+        a.x_view.assign(ax)
+        a.edges.assign(np.array([[0, 1]]))
+        _bodies.append(a)
+
+        b = AffineBody()
+        b.x = wp.zeros((2, ), dtype = wp.vec3)
+        b.x0 = wp.zeros_like(b.x)
+        b.xk = wp.zeros_like(b.x)
+        b.x_view = wp.zeros_like(b.x)
+        tindex = np.array([0, 1, 2]).reshape(1, 3)
+        b.triangles = wp.from_numpy(tindex, dtype = int, shape = (1, 3))
+        b.edges = wp.zeros((1, 2), dtype = int)
+        b.triangles.assign(tindex)
+        b.edges.assign(np.array([[0, 1]]))
+
+        bx = arr[2:]
+        b.x.assign(bx)
+        b.x0.assign(bx)
+        b.xk.assign(bx)
+        b.x_view.assign(bx)
+        _bodies.append(b)
+
+        bodies = wp.array(_bodies, dtype = AffineBody)
+
+        g = wp.zeros((8,), dtype = wp.vec3)
+        H = wp.zeros((4 * 16), dtype = wp.mat33)
+        eenp = np.array([0, 1, 0, 0, 0])
+        ee_list.assign(eenp)
+
+        ipc_term_ee(1, ee_list, bodies, g, H)
+
+    test_ee()

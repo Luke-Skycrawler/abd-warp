@@ -36,8 +36,8 @@ def _put_hess(blocks: wp.array(dtype = wp.mat33), Hi: wp.array3d(dtype = wp.mat3
 
             # blocks[16 * I + ii + jj * 4] += Hi[i, ii, jj]
             # blocks[16 * J + ii + jj * 4] += Hj[i, ii, jj]
-            # if I < J:
-            if J < I:
+            if I < J:
+            # if J < I:
                 # Hij should be put to upper triangle
                 # blocks[16 * (n_bodies + idx) + ii + jj * 4] += Hij[i, ii, jj]
                 # blocks[16 * (n_bodies + idx + nij) + jj + ii * 4] += wp.transpose(Hij[i, ii, jj])

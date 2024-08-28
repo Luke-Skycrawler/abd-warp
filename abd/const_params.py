@@ -6,6 +6,7 @@ mat12 = wp.types.matrix(shape = (12, 12), dtype = wp.float32)
 vec5i = wp.types.vector(length = 5, dtype = int)
 mat23 = wp.types.matrix(shape = (2, 3), dtype = float)
 mat34 = wp.types.matrix(shape = (3, 4), dtype = float)
+mat24 = wp.types.matrix(shape = (2, 4), dtype = float)
 
 dt = 0.01
 max_iter = 10
@@ -26,5 +27,5 @@ I0 = 1e2
 
 # switches to enable/disable contacts
 pt = True
-ee = False
+ee = True
 vg = True
