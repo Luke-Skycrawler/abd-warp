@@ -5,7 +5,7 @@ from ccd import verify_root_pt, verify_root_ee
 import warp as wp
 import numpy as np
 from ipc import ipc_term_pt, _mask_valid
-from culling import cull, BvhBuilder
+from culling import cull, BvhBuilder, cull_
 from affine_body import AffineBody
 import igl
 seed = 114514
