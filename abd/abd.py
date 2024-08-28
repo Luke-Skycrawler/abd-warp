@@ -3,17 +3,15 @@ from simulator.base import BaseSimulator
 from affine_body import AffineBody, AffineMesh, AffineBodyStates, affine_body_states_empty
 from warp.utils import array_inner
 from warp.optim.linear import bicgstab
-from sparse import BSR, bsr_empty
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
 from orthogonal_energy import InertialEnergy
-from ipc import IPCContactEnergy, ipc_term_vg
+from ipc import IPCContactEnergy
 from culling import BvhBuilder, intersection_bodies, cull, cull_vg
-from simulator.fenwick import list_with_meta, insert_overload, ListMeta, compress
-from typing import List
+from simulator.fenwick import list_with_meta, compress
+from typing import List, Any
 # temporary
 from orthogonal_energy import _init, _set_triplets
 from ccd import toi_vg, toi_ee, toi_pt
-from typing import Any
 
 class AffineBodySimulator(BaseSimulator):
 
@@ -84,7 +82,7 @@ class AffineBodySimulator(BaseSimulator):
         self.bvh_edge_traj: List[wp.Bvh] = []
         self.bvh_point_traj: List[wp.Bvh] = []
 
-            
+        
         for b in self.affine_bodies:
             self.bvh_triangles.append(self.bb.bulid_triangle_bvh(b.x, b.triangles, 0.0))
             self.bvh_edges.append(self.bb.build_edge_bvh(b.x, b.edges, dhat * 0.5))
@@ -93,6 +91,18 @@ class AffineBodySimulator(BaseSimulator):
             self.bvh_triangle_traj.append(self.bb.bulid_triangle_bvh(b.x, b.triangles, 0.0))
             self.bvh_edge_traj.append(self.bb.build_edge_bvh(b.x, b.edges, dhat * 0.5))
             self.bvh_point_traj.append(self.bb.build_point_bvh(b.x, dhat))
+
+        self.highlight = np.array([False for _ in range(n_bodies)], dtype = bool)
+    
+    def reset(self): 
+        self.states.A0.assign(self.gather("A"))
+        self.states.p0.assign(self.gather("p"))
+        self.states.pdot.assign(self.gather("pdot"))
+        self.states.Adot.assign(self.gather("Adot"))
+        self.dq.zero_()
+        for _, ab in zip(self.scene.kinetic_objects, self.affine_bodies): 
+            _.assign_to(ab)
+        
 
     @classmethod
     def simulator_args(cls):
@@ -144,7 +154,7 @@ class AffineBodySimulator(BaseSimulator):
         while True:
             E1 = self.compute_energy(alpha)
             wolfe = E1 < E0 + c1 * alpha * qTg
-            if wolfe or alpha < 0.1:
+            if wolfe or alpha < alpha_min:
                 break
             alpha *= 0.5
         return alpha, E1
@@ -210,17 +220,19 @@ class AffineBodySimulator(BaseSimulator):
         it = 0 
         while True:
             self.V_gets_V(states)
+            self.update_mesh_vertex("xk")
             ij_list, ee_list, pt_list, vg_list = self.collision_set()
             nij = ij_list.shape[0]
-
+            
             self.blocks.zero_()
+            self.g.zero_()
             inertia.gradient(g, states)
             inertia.hessian(self.blocks, states)
 
             # ipc_contact.gradient([g, states, ij_list, ee_list, pt_list])
             # ipc_contact.hessian([self.blocks, states, ij_list, ee_list, pt_list])
 
-            ipc_contact.gh([pt_list, ee_list, vg_list, nij, self.warp_affine_bodies, g, self.blocks])
+            self.highlight[:] = ipc_contact.gh([pt_list, ee_list, vg_list, nij, self.warp_affine_bodies, g, self.blocks])
 
             rows.zero_()
             cols.zero_()
@@ -348,29 +360,65 @@ def _update_q0qdot(states: AffineBodyStates):
 if __name__ == "__main__":
     import polyscope as ps
     import threading
+    import fc_viewer as fc
     wp.init()
+    np.printoptions(precision = 4, suppress=True)
     sim = AffineBodySimulator(config_file = "config.json")
     sim.init()
-    ps.init()
+    viewer=fc.fast_cd_viewer()
+    # ps.init()
+
 
     # sim_thread = threading.Thread(target=sim.step)
     # sim_thread.start()
     print("simulation started")
     ps_meshes = []
+    highlight_color = np.array([1.0, 1.0, 0.0]) * 0.8
+    regular_color = np.ones(3) * 0.4
+
     for i, body in enumerate(sim.scene.kinetic_objects):
-        ps_meshes.append(ps.register_surface_mesh(f"body{i}", body.V, body.F))
+        # ps_meshes.append(ps.register_surface_mesh(f"body{i}", body.V, body.F))
+        if i != 0: 
+            viewer.add_mesh(body.V.astype(np.float64), body.F)
+        viewer.set_face_based(True, i)
+        viewer.invert_normals(True, i)
+        viewer.set_color(regular_color, i)
 
     
     bodies = sim.scene.kinetic_objects
     affine_bodies = sim.affine_bodies
     frame = 0
-    while(True):
-        sim.step(frame)
-        for ab, viewer_mesh in zip(affine_bodies, ps_meshes):
-            viewer_mesh.update_vertex_positions(ab.x_view.numpy())    
+    paused = False
+    def key_callback(key, modifier):
+        global paused
+        if key == ord('p') or key == ord('P'):
+            paused = not paused
+        elif key == ord('r') or key == ord('R'):
+            sim.reset()
+
+    def predraw():
+        global frame, sim, paused
+        if not paused:
+            sim.step(frame)
+        for i, body in enumerate(affine_bodies):
+            V = body.x_view.numpy()
+            b = sim.scene.kinetic_objects[i]
+            viewer.set_mesh(V, b.F, i)
         frame += 1
+        for i, h in enumerate(sim.highlight):
+            viewer.set_color(highlight_color if h else regular_color, i)
+    viewer.set_pre_draw_callback(predraw)   
+    viewer.set_key_callback(key_callback)
+    viewer.launch()
+    
+
+    # while(True):
+    #     sim.step(frame)
+    #     for ab, viewer_mesh in zip(affine_bodies, ps_meshes):
+    #         viewer_mesh.update_vertex_positions(ab.x_view.numpy())    
+    #     frame += 1
             
-        ps.frame_tick()
+    #     ps.frame_tick()
         
         
         

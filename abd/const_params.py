@@ -8,10 +8,11 @@ mat23 = wp.types.matrix(shape = (2, 3), dtype = float)
 mat34 = wp.types.matrix(shape = (3, 4), dtype = float)
 
 dt = 0.01
-max_iter = 3
+max_iter = 10
 tol = 1e1
 stiffness = 1e9
 c1 = 1e-4
+alpha_min = 1e-3
 # gravity = -9.8
 # gravity = wp.constant(-0.0)
 gravity = wp.constant(-9.8)

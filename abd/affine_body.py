@@ -68,6 +68,18 @@ class AffineMesh(KineticMesh):
     
     def __init__(self, obj_json):
         super().__init__(obj_json)
+        self.edges = igl.edges(self.F)
+
+    def assign_to(self, ab: AffineBody):
+        ab.triangles.assign(self.F)
+        ab.edges.assign(self.edges)
+
+        ab.x0.assign(self.V)
+
+        Vt = self.V @ self.A.T + self.p.reshape(1, 3)
+        ab.x.assign(Vt)
+        ab.x_view.assign(Vt)
+        ab.xk.assign(Vt)
 
     def warp_affine_body(self, id):
         ab = AffineBody()
@@ -78,18 +90,9 @@ class AffineMesh(KineticMesh):
         ab.x_view = wp.zeros_like(ab.x0)
 
         ab.triangles = wp.zeros(self.F.shape, dtype = int)
-        ab.triangles.assign(self.F)
+        ab.edges = wp.zeros(self.edges.shape, dtype = int)
 
-        edges = igl.edges(self.F)
-        ab.edges = wp.zeros(edges.shape, dtype = int)
-        ab.edges.assign(edges)
-
-        ab.x0.assign(self.V)
-
-        Vt = self.V @ self.A.T + self.p.reshape(1, 3)
-        ab.x.assign(Vt)
-        ab.x_view.assign(Vt)
-        ab.xk.assign(Vt)
+        self.assign_to(ab)
 
         return ab
 

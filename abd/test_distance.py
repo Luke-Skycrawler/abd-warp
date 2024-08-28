@@ -80,13 +80,15 @@ def test_continous():
     # import polyscope as ps
     from simulator.mesh import RawMeshFromFile
     import fc_viewer as fcd
-    # cube = RawMeshFromFile("assets/box.bgeo")
+
+    cube = RawMeshFromFile("assets/box.bgeo")
     # cube = RawMeshFromFile("assets/triangle.obj")
 
-    # V0 = cube.V.astype(dtype = np.float32)
-    # F = cube.F.astype(dtype = np.int32)
-    V0 = np.eye(3)
-    F = np.arange(3).reshape(1, 3)
+    V0 = cube.V.astype(dtype = np.float32)
+    F = cube.F.astype(dtype = np.int32)
+
+    # V0 = np.eye(3)
+    # F = np.arange(3).reshape(1, 3)
 
     print(f"F.shape = {F.shape}, V.shape = {V0.shape}")
     # E = igl.edges(F)
@@ -172,6 +174,25 @@ def test_continous():
             else:
                 print("Guizmo not initialized, pass init_guizmo=True to the viewer constructor")
 
+    def exhaustive_ptlist():
+
+        pt_list0 = [[0, 1, 0, ii, jj] for ii in range(V0.shape[0]) for jj in range(F.shape[0])]
+        pt_list1 = [[1, 0, 0, ii, jj] for ii in range(V0.shape[0]) for jj in range(F.shape[0])]
+
+        ptnp = np.array(pt_list0 + pt_list1)
+        pt_list = wp.from_numpy(ptnp, dtype = vec5i, shape = (ptnp.shape[0], ))
+        return pt_list
+
+    def culling_ptlist(a, b):
+        bp0 = bb.build_point_bvh(a.x, dhat)
+        bp1 = bb.build_point_bvh(b.x, dhat)
+        
+
+        bt1 = bb.bulid_triangle_bvh(b.x, Fwp, dhat)
+        bt0 = bb.bulid_triangle_bvh(a.x, Fwp, dhat)
+        pt_list = cull(ij_list, [bp0, bp1], [bt0, bt1])
+        return pt_list
+
     def pre_draw_callback():
         A = T0
         V = V0 @ A[:3, :3].T + A[: 3, 3].reshape(1, 3)
@@ -182,18 +203,8 @@ def test_continous():
         a.x.assign(V)
         b.x.assign(V0)
 
-        bp0 = bb.build_point_bvh(a.x, dhat)
-        bp1 = bb.build_point_bvh(b.x, dhat)
-        
-
-        bt1 = bb.bulid_triangle_bvh(b.x, Fwp, dhat)
-        bt0 = bb.bulid_triangle_bvh(a.x, Fwp, dhat)
-        pt_list = cull(ij_list, [bp0, bp1], [bt0, bt1])
-        pt_list0 = [[0, 1, 0, ii, jj] for ii in range(V.shape[0]) for jj in range(F.shape[0])]
-        pt_list1 = [[1, 0, 0, ii, jj] for ii in range(V.shape[0]) for jj in range(F.shape[0])]
-
-        ptnp = np.array(pt_list0 + pt_list1)
-        pt_list = wp.from_numpy(ptnp, dtype = vec5i, shape = (ptnp.shape[0], ))
+        pt_list = culling_ptlist(a, b)
+        # pt_list = exhaustive_ptlist()
         
 
         npt = pt_list.shape[0]
@@ -210,9 +221,9 @@ def test_continous():
         highlight_color = np.array([1.0, 1.0, 0.0]) * 0.8
         normal_color = np.ones(3) * 0.4
         for d2, _v, pt in zip(dnp, vnp, ptnp):
-            if _v:
+            # if _v:
             # if d2 < d2hat:
-            # if _v and d2 < d2hat:
+            if _v and d2 < d2hat:
                 # print(f"d2 = {d2}, d2hat = {d2hat}")
 
                 I = pt[1]                
@@ -234,8 +245,8 @@ def test_continous():
     viewer.set_key_callback(callback_key_pressed)
     viewer.add_mesh(V0.astype(np.float64), F)
     for i in range(2):
-        viewer.set_face_based(True, i)
-        # viewer.invert_normals(True, i)
+        # viewer.set_face_based(True, i)
+        viewer.invert_normals(True, i)
     viewer.set_color(np.array([0.5, 0.5, 0.5]), 1)
 
     viewer.launch()    

@@ -5,6 +5,7 @@ from psd.hl import signed_distance, eig_Hl_tid, gl
 from psd.vf import beta_gamma_pt, C_vf, dcvfdx_s
 from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk, fetch_pt_x0, fetch_ee_x0
 from ccd import verify_root_pt, verify_root_ee
+import ipctk
 
 class IPCContactEnergy:
     def __init__(self) -> None:
@@ -16,13 +17,28 @@ class IPCContactEnergy:
         vg_list = inputs[2]
         E = wp.zeros((1, ), dtype =float)
         inputs.append(E)
+        Enp = 0.0
         if ee:
             wp.launch(ipc_energy_ee, dim = ee_list.shape, inputs = inputs)
         if pt:
-            wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
+            # wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
+            bodies = inputs[-2]
+            x = wp.zeros((pt_list.shape[0], 4), dtype = wp.vec3)
+            npt = pt_list.shape[0]
+            wp.launch(get_vertices, dim = pt_list.shape, inputs = [pt_list, bodies, x])
+            xnp = x.numpy()
+            Enp = 0.0
+            for i in range(npt):
+                p = xnp[i, 0]
+                t0 = xnp[i, 1]
+                t1 = xnp[i, 2]
+                t2 = xnp[i, 3]
+                d2 = ipctk.point_triangle_distance(p, t0, t1, t2)
+                Enp += barrier_np(d2)
+
         if vg:
             wp.launch(ipc_energy_vg, dim = vg_list.shape, inputs = inputs)
-        return E.numpy()[0]
+        return E.numpy()[0] + Enp
 
     def gradient(self, inputs):
         pass
@@ -35,11 +51,14 @@ class IPCContactEnergy:
         pt_list, ee_list, vg_list, nij, bodies, g, blocks = inputs
         dim = vg_list.shape[0]
 
-        ipc_term_pt(nij, pt_list, bodies, g, blocks)
+        highlight = ipc_term_pt(nij, pt_list, bodies, g, blocks)
         ipc_term_ee(nij, ee_list, bodies, g, blocks)
         wp.launch(ipc_term_vg, dim = (dim, ), inputs = [vg_list, bodies, g, blocks])
-        return dim
+        return highlight
 
+
+    
+        
 @wp.func
 def barrier(d: float) -> float:
     ret = 0.0
@@ -47,6 +66,14 @@ def barrier(d: float) -> float:
     if d < d2hat:
         dbydhat = d / d2hat
         ret = kappa * - wp.pow((dbydhat - 1.0), 2.0) * wp.log(dbydhat)
+    return ret
+
+def barrier_np(d: float) -> float:
+    ret = 0.0
+
+    if d < d2hat:
+        dbydhat = d / d2hat
+        ret = kappa * - (dbydhat - 1.0) ** 2.0 * np.log(dbydhat)
     return ret
 
 @wp.func
@@ -177,13 +204,17 @@ def extract_g(Q, dcdx, Jp, Jt):
     for i in range(3):
         gl[3 * i: 3 * i + 3] = Q[4 * 3 + i]
     g12 = np.kron(dcdx.T, np.eye(3)) @ gl
+    g = JTg(Jp, Jt, g12)
+    return g12, g
+
+def JTg(Jp, Jt, g12):
     Jp = Jp.reshape(1, 4)
     gp = np.kron(Jp.T, np.eye(3)) @ g12[:3]
     gt = np.kron(Jt.T, np.eye(3)) @ g12[3:]
     g = np.zeros(24)
     g[:12] = gp
     g[12:] = gt
-    return g12, g
+    return g
 
 @wp.kernel
 def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
@@ -196,10 +227,23 @@ def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any),
     d0 = signed_distance(e0p, e1p, e2p)
     d[i] = d0 * d0
 
+@wp.kernel
+def get_vertices(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+    i = wp.tid()
+    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
+    x[i, 0] = p
+    x[i, 1] = t0
+    x[i, 2] = t1
+    x[i, 3] = t2
 
 def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     npt = pt_list.shape[0]
     n_bodies = bodies.shape[0]
+    highlight = np.array([False for _ in range(n_bodies)])
+
+    if not pt:
+        return highlight 
+
     Q = wp.zeros((npt, 5 * 3), dtype = wp.vec3)
     Lam = wp.zeros((npt, 5), dtype = float)
     dcdx = wp.zeros((npt, ), dtype = mat34)
@@ -207,11 +251,13 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     Jp = wp.zeros((npt, ), dtype = wp.vec4) 
     valid = wp.zeros((npt, ), dtype = wp.bool)
     d2 = wp.zeros((npt,), dtype = float)
+    x = wp.zeros((npt, 4), dtype = wp.vec3)
 
-    wp.launch(_mask_valid, dim = (npt, ), inputs = [pt_list, bodies, valid, d2])
-    wp.launch(_Q_lambda_pt, dim = (npt, ), inputs = [pt_list, bodies, Q, Lam])
-    wp.launch(_dcdx, dim = (npt, ), inputs = [pt_list, bodies, dcdx])
+    # wp.launch(_mask_valid, dim = (npt, ), inputs = [pt_list, bodies, valid, d2])
+    # wp.launch(_Q_lambda_pt, dim = (npt, ), inputs = [pt_list, bodies, Q, Lam])
+    # wp.launch(_dcdx, dim = (npt, ), inputs = [pt_list, bodies, dcdx])
     wp.launch(extract_JpJt, dim = (npt,), inputs=[pt_list, bodies, Jp, Jt])
+    wp.launch(get_vertices, dim = (npt, ), inputs = [pt_list, bodies, x])
 
     Qnp = Q.numpy()
     Jpnp = Jp.numpy()
@@ -220,47 +266,159 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     dcdxnp = dcdx.numpy()
     validnp = valid.numpy()
     d2np = d2.numpy()
+    xnp = x.numpy()
     
     gnp = np.zeros((npt, 24))
     Hinp = np.zeros((npt, 12, 12))
     Hjnp = np.zeros((npt, 12, 12))
     Hijnp = np.zeros((npt, 12, 12))
-    if npt > 0:
-        # print(f"colision detected, list = {pt_list.numpy()}")
-        print(f"colision detected")
-        print(f"d2 < dhat, valid: {validnp}")
-        print(f"d2 = {d2np}")
+    ptnp = pt_list.numpy()
+    d2min = np.min(d2np) if len(d2np) else 1.0
+    # if npt > 0 and d2min < d2hat:
+    #     # print(f"colision detected, list = {ptnp}")
+    #     print(f"colision detected, d2 min = {d2min}")
+    #     # print(f"d2 < dhat, valid: {validnp}")
+    #     # print(f"d2 = {d2np}")
+
+    hess = np.zeros((24, 24))
+    gradient = np.zeros(24)
+
     for i in range(npt):
-        # if validnp[i]:
-        # if True:
-        if d2np[i] < d2hat:
-            pt_grad, g = extract_g(Qnp[i], dcdxnp[i], Jpnp[i], Jtnp[i])
+        p, t0, t1, t2 = xnp[i]
+        d2_ipc = ipctk.point_triangle_distance(p, t0, t1, t2)
+        if d2_ipc < d2hat:
+            I = ptnp[i, 0]
+            J = ptnp[i, 1]
+            highlight[J] = True
+            B_ = barrier_derivative_np(d2_ipc)
+            B__ = barrier_derivative2_np(d2_ipc)
 
-            qq = extract_Q(Qnp[i])
-            Hl_pos = QLQinv(qq, Lamnp[i])
-            Hpt = dcTHldc(dcdxnp[i], Hl_pos)
-            B_ = barrier_derivative_np(d2np[i])
-            B__ = barrier_derivative2_np(d2np[i])
-            if d2np[i] < d2hat:
-                print(f"pt contact {i}, d^2 = {d2np[i]}")
-                print(f"B. = {B_}")
-                print(f"B.. = {B__}")
-                print(f"g = {g}")
-            else: 
-                print(f"pt contact {i}, d^2 = {d2np[i]}")
-            Hipc = Hpt * B_ + np.outer(pt_grad, pt_grad) * B__ 
-            g *= B_
-            # H12 tested
+            pt_grad = ipctk.point_triangle_distance_gradient(p, t0, t1, t2)
+
+            pt_hess = ipctk.point_triangle_distance_hessian(p, t0, t1, t2)
+
+            Hipc = pt_hess * B_ + np.outer(pt_grad, pt_grad) * B__ 
             Hi, Hj, Hij = JTH12J(Hipc, Jpnp[i], Jtnp[i])
+            pt_grad *= B_            
 
+            g = JTg(Jpnp[i], Jtnp[i], pt_grad)
+            
             gnp[i] = g
             Hinp[i] = Hi
             Hjnp[i] = Hj
             Hijnp[i] = Hij
+            
+            hess[I * 12: I * 12 + 12, I * 12: I * 12 + 12] += Hi
+            hess[J * 12: J * 12 + 12, J * 12: J * 12 + 12] += Hj
+            if I < J:
+                hess[I * 12: I * 12 + 12, J * 12: J * 12 + 12] += Hij
+                hess[J * 12: J * 12 + 12, I * 12: I * 12 + 12] += Hij.T
+            else:
+                hess[J * 12: J * 12 + 12, I * 12: I * 12 + 12] += Hij
+                hess[I * 12: I * 12 + 12, J * 12: J * 12 + 12] += Hij.T
+            gradient[I * 12: I * 12 + 12] += g[:12]
+            gradient[J * 12: J * 12 + 12] += g[12:]
+            
+    # for i in range(npt):
+    #     # if validnp[i]:
+    #     # if True:
+    #     # if d2np[i] < d2hat and validnp[i]:
+    #     if d2np[i] < d2hat:
+    #         I = ptnp[i, 1]
+    #         highlight[I] = True
+    #         print(f"pt contact {i}, d^2 = {d2np[i]}")
+    #         pt_grad, g = extract_g(Qnp[i], dcdxnp[i], Jpnp[i], Jtnp[i])
+            
+    #         qq = extract_Q(Qnp[i])
+    #         Hl_pos = QLQinv(qq, Lamnp[i])
 
-    put_grad(grad, gnp, pt_list)
-    put_hess(blocks, Hinp, Hjnp, Hijnp, pt_list, nij, n_bodies)
-    return gnp, Hinp, Hjnp, Hijnp
+    #         p = xnp[i, 0]
+    #         t0 = xnp[i, 1]
+    #         t1 = xnp[i, 2]
+    #         t2 = xnp[i, 3]
+
+    #         gpt_ipc = ipctk.point_triangle_distance_gradient(p, t0, t1, t2)
+    #         Hpt_ipc = ipctk.point_triangle_distance_hessian(p, t0, t1, t2)
+    #         d2_ipc = ipctk.point_triangle_distance(p, t0, t1, t2)
+
+    #         Hpt = dcTHldc(dcdxnp[i], Hl_pos)
+            
+    #         # print(f"Hpt = {Hpt}, \nref = {Hpt_ipc}, \n diff = {Hpt - Hpt_ipc}")
+    #         print(f"valid = {validnp[i]}")
+    #         print(f"d2 = {d2np[i]}, d2_ipc = {d2_ipc}, diff = {d2np[i] - d2_ipc}")
+    #         print(f"gpt = {pt_grad}, \nref = {gpt_ipc}, \n diff = {pt_grad - gpt_ipc}")
+            
+
+            
+    #         B_ = barrier_derivative_np(d2np[i])
+    #         B__ = barrier_derivative2_np(d2np[i])
+
+    #         B_ = barrier_derivative_np(d2_ipc)
+    #         B__ = barrier_derivative2_np(d2_ipc)
+    #         # if d2np[i] < d2hat:
+    #         #     print(f"pt contact {i}, d^2 = {d2np[i]}")
+    #         #     print(f"B. = {B_}")
+    #         #     print(f"B.. = {B__}")
+    #         #     print(f"g = {g}")
+    #         # else: 
+    #         #     print(f"pt contact {i}, d^2 = {d2np[i]}")
+
+    #         Hpt = Hpt_ipc
+    #         pt_grad = gpt_ipc
+
+
+    #         Hipc = Hpt * B_ + np.outer(pt_grad, pt_grad) * B__ 
+
+    #         g = JTg(Jpnp[i], Jtnp[i], pt_grad)
+    #         g *= B_
+    #         # H12 tested
+    #         Hi, Hj, Hij = JTH12J(Hipc, Jpnp[i], Jtnp[i])
+
+    #         gnp[i] = g
+    #         Hinp[i] = Hi
+    #         Hjnp[i] = Hj
+    #         Hijnp[i] = Hij
+
+    # put_grad(grad, gnp, pt_list)
+    # put_hess(blocks, Hinp, Hjnp, Hijnp, pt_list, nij, n_bodies)
+    wp.launch(update_grad, dim = (1), inputs = [grad, wp.from_numpy(gradient, dtype = float, shape=(24, ))])
+    wp.launch(update_hess, dim = (1), inputs = [blocks, wp.from_numpy(hess, dtype = float, shape = (24, 24))])
+    
+    return highlight
+@wp.kernel
+def update_grad(g: wp.array(dtype = wp.vec3), gnp: wp.array(dtype = float)):
+    for i in range(8):
+        g[i] += wp.vec3(gnp[i * 3], gnp[i * 3 + 1], gnp[i * 3 + 2])
+@wp.kernel
+def update_hess(blocks: wp.array(dtype = wp.mat33), H: wp.array2d(dtype = float)):
+    for ii in range(4):
+        for jj in range(4):
+            b00 = wp.mat33(
+                H[ii * 3, jj * 3], H[ii * 3, jj * 3 + 1], H[ii * 3, jj * 3 + 2],
+                H[ii * 3 + 1, jj * 3], H[ii * 3 + 1, jj * 3 + 1], H[ii * 3 + 1, jj * 3 + 2],
+                H[ii * 3 + 2, jj * 3], H[ii * 3 + 2, jj * 3 + 1], H[ii * 3 + 2, jj * 3 + 2]
+            )
+            b11 = wp.mat33(
+                H[ii * 3 + 12, jj * 3 + 12], H[ii * 3 + 12, jj * 3 + 13], H[ii * 3 + 12, jj * 3 + 14],
+                H[ii * 3 + 13, jj * 3 + 12], H[ii * 3 + 13, jj * 3 + 13], H[ii * 3 + 13, jj * 3 + 14],
+                H[ii * 3 + 14, jj * 3 + 12], H[ii * 3 + 14, jj * 3 + 13], H[ii * 3 + 14, jj * 3 + 14]
+            )
+
+            b01 = wp.mat33(
+                H[ii * 3, jj * 3 + 12], H[ii * 3, jj * 3 + 13], H[ii * 3, jj * 3 + 14],
+                H[ii * 3 + 1, jj * 3 + 12], H[ii * 3 + 1, jj * 3 + 13], H[ii * 3 + 1, jj * 3 + 14],
+                H[ii * 3 + 2, jj * 3 + 12], H[ii * 3 + 2, jj * 3 + 13], H[ii * 3 + 2, jj * 3 + 14]
+            )
+
+            b10 = wp.mat33( 
+                H[ii * 3 + 12, jj * 3], H[ii * 3 + 12, jj * 3 + 1], H[ii * 3 + 12, jj * 3 + 2],
+                H[ii * 3 + 13, jj * 3], H[ii * 3 + 13, jj * 3 + 1], H[ii * 3 + 13, jj * 3 + 2],
+                H[ii * 3 + 14, jj * 3], H[ii * 3 + 14, jj * 3 + 1], H[ii * 3 + 14, jj * 3 + 2]
+            )
+            blocks[ii + jj * 4] += b00        
+            blocks[ii + jj * 4 + 16] += b11
+            blocks[ii + jj * 4 + 32] += b01
+            blocks[ii + jj * 4 + 48] += b10
 
 def put_grad(g, gnp, pt_list):
     npt = pt_list.shape[0]
@@ -278,8 +436,8 @@ def to_wp(H):
     npt = H.shape[0]
     Hn = np.zeros((npt, 4, 4, 3, 3))
     for i in range(npt):
-        for ii in range(3):
-            for jj in range(3):
+        for ii in range(4):
+            for jj in range(4):
                 Hn[i, ii, jj] = H[i, ii * 3: ii * 3 + 3, jj * 3: jj * 3 + 3]
 
     Hwp = wp.from_numpy(Hn, dtype = wp.mat33, shape = (npt, 4, 4))
@@ -299,7 +457,8 @@ def _put_hess(blocks: wp.array(dtype = wp.mat33), Hi: wp.array3d(dtype = wp.mat3
 
             # blocks[16 * I + ii + jj * 4] += Hi[i, ii, jj]
             # blocks[16 * J + ii + jj * 4] += Hj[i, ii, jj]
-            if I < J:
+            # if I < J:
+            if J < I:
                 # Hij should be put to upper triangle
                 # blocks[16 * (n_bodies + idx) + ii + jj * 4] += Hij[i, ii, jj]
                 # blocks[16 * (n_bodies + idx + nij) + jj + ii * 4] += wp.transpose(Hij[i, ii, jj])
@@ -397,6 +556,8 @@ def _dcdx(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), ret: 
     
     
 def ipc_term_ee(nij, ee_list, bodies, g, blocks):
+    if not ee:
+        return
     return
 
 

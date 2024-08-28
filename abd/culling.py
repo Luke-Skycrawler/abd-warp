@@ -6,6 +6,29 @@ from simulator.fenwick import ListMeta, insert_overload, list_with_meta, compres
 from culling2 import *
 
 def cull(ij_list, _bvh_list1, _bvh_list2 = None):
+    if _bvh_list2 is None:
+        bvh_list2 = _bvh_list1
+    else:
+        bvh_list2 = _bvh_list2
+    ijnp = ij_list.numpy()
+    np1 = np.array([bvh.lowers.shape[0] for bvh in _bvh_list1])
+    np2 = np.array([bvh.lowers.shape[0] for bvh in bvh_list2])
+
+    prim_list = []
+    for ii, ij in enumerate(ijnp):
+        I = ij[0]
+        J = ij[1]
+        if _bvh_list2 is None:
+            prim_list += [(I, J, ii, pi, pj) for pi in range(np1[I]) for pj in range(pi, np2[I])]
+        else :
+            prim_list += [(I, J, ii, pi, pj) for pi in range(np1[I]) for pj in range(np2[J])]
+            prim_list += [(J, I, ii, pj, pi) for pj in range(np1[J]) for pi in range(np2[I])]
+    plnp = np.array(prim_list)
+    plwp = wp.zeros((plnp.shape[0], ), dtype = vec5i)
+    plwp.assign(plnp)
+    return plwp
+
+def cull_(ij_list, _bvh_list1, _bvh_list2 = None):
     bvh_list1 = extract_bvh_list(_bvh_list1)
     bvh_list2 = None
     shape = ij_list.shape[0]
