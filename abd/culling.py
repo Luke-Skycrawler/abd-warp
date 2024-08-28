@@ -10,7 +10,8 @@ def cull(ij_list, _bvh_list1, _bvh_list2 = None):
         bvh_list2 = _bvh_list1
     else:
         bvh_list2 = _bvh_list2
-    ijnp = ij_list.numpy()
+    # ijnp = ij_list.numpy()
+    ijnp = np.array([[0, 1]])
     np1 = np.array([bvh.lowers.shape[0] for bvh in _bvh_list1])
     np2 = np.array([bvh.lowers.shape[0] for bvh in bvh_list2])
 

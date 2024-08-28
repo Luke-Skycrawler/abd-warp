@@ -326,8 +326,8 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     for i in range(npt):
         # if validnp[i]:
         # if True:
-        # if d2np[i] < d2hat and validnp[i]:
-        if d2np[i] < d2hat:
+        if d2np[i] < d2hat and validnp[i]:
+        # if d2np[i] < d2hat:
             I = ptnp[i, 1]
             highlight[I] = True
             print(f"pt contact {i}, d^2 = {d2np[i]}")

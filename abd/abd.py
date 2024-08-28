@@ -178,7 +178,8 @@ class AffineBodySimulator(BaseSimulator):
             self.bb.point_bvh_to_traj(b.xk, self.bvh_points[i], self.bvh_point_traj[i])
 
         ee_list = cull(ij_list, self.bvh_edge_traj)
-        pt_list = cull(ij_list, self.bvh_triangle_traj, self.bvh_point_traj)
+        # pt_list = cull(ij_list, self.bvh_triangle_traj, self.bvh_point_traj)
+        pt_list = cull(ij_list, self.bvh_point_traj, self.bvh_triangle_traj)
 
         vg_list = cull_vg(self.bvh_body_traj.lowers, self.bvh_point_traj, self.warp_affine_bodies)
         return ij_list, pt_list, ee_list, vg_list
@@ -198,7 +199,8 @@ class AffineBodySimulator(BaseSimulator):
             self.bb.update_point_bvh(b.xk, dhat, p)
 
         ee_list = cull(ij_list, self.bvh_edges)
-        pt_list = cull(ij_list, self.bvh_triangles, self.bvh_points)
+        # pt_list = cull(ij_list, self.bvh_triangles, self.bvh_points)
+        pt_list = cull(ij_list, self.bvh_points, self.bvh_triangles)
 
         vg_list = cull_vg(bvh_bodies.lowers, self.bvh_points, self.warp_affine_bodies)
         return ij_list, ee_list, pt_list, vg_list
