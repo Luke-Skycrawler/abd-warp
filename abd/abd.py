@@ -391,7 +391,7 @@ if __name__ == "__main__":
     paused = False
     def key_callback(key, modifier):
         global paused
-        if key == ord('p') or key == ord('P'):
+        if key == ord('p') or key == ord('P') or key == ord(' '):
             paused = not paused
         elif key == ord('r') or key == ord('R'):
             sim.reset()
