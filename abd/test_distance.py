@@ -4,7 +4,12 @@ from psd.ee import beta_gamma_ee, C_ee
 from ccd import verify_root_pt, verify_root_ee
 import warp as wp
 import numpy as np
-from ipcsk.pt_ipc import ipc_term_pt, _mask_valid
+test = "ee"
+if test == "pt":
+    from ipcsk.pt_ipc import ipc_term_pt, _mask_valid
+elif test == "ee":
+    from ipcsk.ee_ipc import ipc_term_ee, _mask_valid
+
 from culling import cull, BvhBuilder, cull_
 from affine_body import AffineBody
 import igl
@@ -86,13 +91,14 @@ def test_continous():
 
     V0 = cube.V.astype(dtype = np.float32)
     F = cube.F.astype(dtype = np.int32)
+    E = igl.edges(F)
 
     # V0 = np.eye(3)
     # F = np.arange(3).reshape(1, 3)
 
-    print(f"F.shape = {F.shape}, V.shape = {V0.shape}")
-    # E = igl.edges(F)
-    E = np.array([0, 1], dtype = np.int32)
+    # print(f"F.shape = {F.shape}, V.shape = {V0.shape}")
+    # # E = igl.edges(F)
+    # E = np.array([0, 1], dtype = np.int32)
     viewer = fcd.fast_cd_viewer()
     vis_cd = True
     transform = "translate"
@@ -193,6 +199,14 @@ def test_continous():
         pt_list = cull(ij_list, [bp0, bp1], [bt0, bt1])
         return pt_list
 
+    def culling_eelist(a, b):
+        ee_list0 = [[0, 1, 0, ii, jj] for ii in range(E.shape[0]) for jj in range(E.shape[0])]
+        eenp = np.array(ee_list0)
+        ee_list = wp.from_numpy(eenp, dtype = vec5i, shape = (eenp.shape[0], ))
+        return ee_list
+
+    cull_list = culling_eelist if test == "ee" else culling_ptlist
+
     def pre_draw_callback():
         A = T0
         V = V0 @ A[:3, :3].T + A[: 3, 3].reshape(1, 3)
@@ -203,24 +217,27 @@ def test_continous():
         a.x.assign(V)
         b.x.assign(V0)
 
-        pt_list = culling_ptlist(a, b)
+        # pt_list = culling_ptlist(a, b)
+        # ee_list = culling_eelist(a, b)
+        prim_list = cull_list(a, b)
         # pt_list = exhaustive_ptlist()
         
 
-        npt = pt_list.shape[0]
+        # npt = pt_list.shape[0]
+        nprim = prim_list.shape[0]
 
-        valid = wp.zeros((npt, ), dtype = wp.bool)
-        d2 = wp.zeros((npt, ), dtype = float)
-        wp.launch(_mask_valid, dim = (npt, ), inputs = [pt_list, bodies, valid, d2])
+        valid = wp.zeros((nprim, ), dtype = wp.bool)
+        d2 = wp.zeros((nprim, ), dtype = float)
+        wp.launch(_mask_valid, dim = (nprim, ), inputs = [prim_list, bodies, valid, d2])
 
-        ptnp = pt_list.numpy()
+        primnp = prim_list.numpy()
         vnp = valid.numpy()
         dnp = d2.numpy()
 
         c = [0, 0]
         highlight_color = np.array([1.0, 1.0, 0.0]) * 0.8
         normal_color = np.ones(3) * 0.4
-        for d2, _v, pt in zip(dnp, vnp, ptnp):
+        for d2, _v, pt in zip(dnp, vnp, primnp):
             # if _v:
             # if d2 < d2hat:
             if _v and d2 < d2hat:

@@ -8,14 +8,27 @@ def C_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     e1 = x3 - x2
     e2 = x2 - x0
 
-    e0x12 = wp.dot(wp.cross(e0, e1), wp.cross(e0, e1))
+    # e0x12 = wp.dot(wp.cross(e0, e1), wp.cross(e0, e1))
 
-    al = wp.dot(e0, e1) / wp.dot(e0, e0)
-    bet = (wp.dot(e1, e1) * wp.dot(e0, e2) - wp.dot(e2, e1) * wp.dot(e0, e1)) / e0x12
+    # al = wp.dot(e0, e1) / wp.dot(e0, e0)
+    # bet = (wp.dot(e1, e1) * wp.dot(e0, e2) - wp.dot(e2, e1) * wp.dot(e0, e1)) / e0x12
 
-    gam = (wp.dot(e0, e0) * wp.dot(e2, e1) - wp.dot(e2, e0) * wp.dot(e0, e1)) / e0x12
+    # gam = (wp.dot(e0, e0) * wp.dot(e2, e1) - wp.dot(e2, e0) * wp.dot(e0, e1)) / e0x12
 
-    return e0, e1 - al * e0, e2 - bet * e0 - gam * e1
+    # return e0, e1 - al * e0, e2 - bet * e0 - gam * e1
+    alpha = wp.dot(e0, e1) / wp.dot(e0, e0)
+
+    e1perp = e1 - alpha * e0
+    e0Te0 = wp.dot(e0, e0)
+    e0Te1 = wp.dot(e0, e1)
+    e1Te1 = wp.dot(e1, e1)
+    A = wp.mat22(e0Te0, e0Te1, e0Te1, e1Te1)
+    b = wp.vec2(wp.dot(e0, e2), wp.dot(e1, e2))
+
+    beta_gamma = wp.inverse(A) @ b
+
+    e2perp = e2 - beta_gamma[0] * e0 - beta_gamma[1] * e1
+    return e0, e1perp, e2perp
 
 @wp.func
 def dadx(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):

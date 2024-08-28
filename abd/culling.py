@@ -20,7 +20,7 @@ def cull(ij_list, _bvh_list1, _bvh_list2 = None):
         I = ij[0]
         J = ij[1]
         if _bvh_list2 is None:
-            prim_list += [(I, J, ii, pi, pj) for pi in range(np1[I]) for pj in range(pi, np2[I])]
+            prim_list += [(I, J, ii, pi, pj) for pi in range(np1[I]) for pj in range(np2[J])]
         else :
             prim_list += [(I, J, ii, pi, pj) for pi in range(np1[I]) for pj in range(np2[J])]
             prim_list += [(J, I, ii, pj, pi) for pj in range(np1[J]) for pi in range(np2[I])]

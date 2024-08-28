@@ -18,8 +18,9 @@ def _mask_valid(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any),
     true_root = verify_root_ee(p, t0, t1, t2)
     valid[i] = true_root
     e0p, e1p, e2p = C_ee(p, t0, t1, t2)
-    d0 = signed_distance(e0p, e1p, e2p)
-    d[i] = d0 * d0
+    # d0 = signed_distance(e0p, e1p, e2p)
+    # d[i] = d0 * d0
+    d[i] = wp.length_sq(e2p)
 
 @wp.kernel
 def _Q_lambda_ee(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype =Any), q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = float)):
@@ -89,15 +90,14 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
     Hjnp = np.zeros((nee, 12, 12))
     Hijnp = np.zeros((nee, 12, 12))
     
-
+    # print(f"d2 min= {np.min(d2np)}, nee = {nee}, d2hat = {d2hat}")
     for i in range(nee):
-        # if d2np[i] < d2hat and validnp[i]:
-        if True:
+        if d2np[i] < d2hat and validnp[i]:
             J = eenp[i, 1]
             highlight[J] = True
+            print("ee collision detected!")
             B_ = barrier_derivative_np(d2np[i])
             B__ = barrier_derivative2_np(d2np[i])
-            print(f"ee collision detected, d2 = {d2np[i]}")
             ee_grad, g = extract_g(Qnp[i], dcdxnp[i], Jeinp[i], Jejnp[i])
             qq = extract_Q(Qnp[i])
             Hl = QLQinv(qq, Lamnp[i])
@@ -113,9 +113,9 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
 
                 Hee_ipc = ipctk.line_line_distance_hessian(ei0, ei1, ej0, ej1)
                 d2_ipc = ipctk.line_line_distance(ei0, ei1, ej0, ej1)
-                print(f"valid = {validnp[i]}, d2 = {d2np[i]}, d2_ipc = {d2_ipc}")
-                print(f"ee_grad = {ee_grad}\nref = {gee_ipc}\ndiff = {(ee_grad - gee_ipc)}")
-                print(f"H = {Hpt}\nref = {Hee_ipc}, diff = {(Hpt - Hee_ipc)}")
+                # print(f"valid = {validnp[i]}, d2 = {d2np[i]}, d2_ipc = {d2_ipc}")
+                # print(f"ee_grad = {ee_grad}\nref = {gee_ipc}\ndiff = {(ee_grad - gee_ipc)}")
+                # print(f"H = {Hpt}\nref = {Hee_ipc}, diff = {(Hpt - Hee_ipc)}")
 
 
                 B_ = barrier_derivative(d2_ipc)
@@ -137,10 +137,9 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
             Hjnp[i] = Hj
             Hijnp[i] = Hij
 
-        put_grad(grad, gnp, ee_list)
-        put_hess(blocks, Hinp, Hjnp, Hijnp, ee_list, nij, n_bodies)
-
-        return highlight
+    put_grad(grad, gnp, ee_list)
+    put_hess(blocks, Hinp, Hjnp, Hijnp, ee_list, nij, n_bodies)
+    return highlight
   
 
 def QLQinv(Q, lam):

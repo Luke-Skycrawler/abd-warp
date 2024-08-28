@@ -49,7 +49,7 @@ def verify_root_pt(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
 @wp.func
 def verify_root_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     beta, gamma = beta_gamma_ee(x0, x1, x2, x3)
-    cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0
+    cond = 0.0 < beta < 1.0 and 0.0 < -gamma < 1.0
     return cond
 
 @wp.func
