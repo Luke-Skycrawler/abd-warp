@@ -26,6 +26,6 @@ mass = 1e3
 I0 = 1e2
 
 # switches to enable/disable contacts
-pt = False
+pt = True
 ee = True
 vg = True

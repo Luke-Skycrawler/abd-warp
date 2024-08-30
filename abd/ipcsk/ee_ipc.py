@@ -8,7 +8,7 @@ from typing import Any
 from ipcsk.barrier import *
 from ipcsk.put import put_grad, put_hess
 import ipctk
-ipctk_ref = True
+ipctk_ref = False
 
 @wp.kernel
 def _mask_valid(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
@@ -93,49 +93,50 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
     # print(f"d2 min= {np.min(d2np)}, nee = {nee}, d2hat = {d2hat}")
     for i in range(nee):
         if d2np[i] < d2hat and validnp[i]:
-            J = eenp[i, 1]
-            highlight[J] = True
-            print("ee collision detected!")
-            B_ = barrier_derivative_np(d2np[i])
-            B__ = barrier_derivative2_np(d2np[i])
-            ee_grad, g = extract_g(Qnp[i], dcdxnp[i], Jeinp[i], Jejnp[i])
-            qq = extract_Q(Qnp[i])
-            Hl = QLQinv(qq, Lamnp[i])
-            Hpt = dcTHldc(dcdxnp[i], Hl)
+            with wp.ScopedTimer(f"ee contact {i}"):
+                J = eenp[i, 1]
+                highlight[J] = True
+                print(f"ee contact {i}, d2 = {d2np[i]}")
+                B_ = barrier_derivative_np(d2np[i])
+                B__ = barrier_derivative2_np(d2np[i])
+                ee_grad, g = extract_g(Qnp[i], dcdxnp[i], Jeinp[i], Jejnp[i])
+                qq = extract_Q(Qnp[i])
+                Hl = QLQinv(qq, Lamnp[i])
+                Hee = dcTHldc(dcdxnp[i], Hl)
 
-            if ipctk_ref:
-                ei0 = xnp[i, 0]
-                ei1 = xnp[i, 1]
-                ej0 = xnp[i, 2]
-                ej1 = xnp[i, 3]
+                if ipctk_ref:
+                    ei0 = xnp[i, 0]
+                    ei1 = xnp[i, 1]
+                    ej0 = xnp[i, 2]
+                    ej1 = xnp[i, 3]
 
-                gee_ipc = ipctk.line_line_distance_gradient(ei0, ei1, ej0, ej1)
+                    gee_ipc = ipctk.line_line_distance_gradient(ei0, ei1, ej0, ej1)
 
-                Hee_ipc = ipctk.line_line_distance_hessian(ei0, ei1, ej0, ej1)
-                d2_ipc = ipctk.line_line_distance(ei0, ei1, ej0, ej1)
-                # print(f"valid = {validnp[i]}, d2 = {d2np[i]}, d2_ipc = {d2_ipc}")
-                # print(f"ee_grad = {ee_grad}\nref = {gee_ipc}\ndiff = {(ee_grad - gee_ipc)}")
-                # print(f"H = {Hpt}\nref = {Hee_ipc}, diff = {(Hpt - Hee_ipc)}")
+                    Hee_ipc = ipctk.line_line_distance_hessian(ei0, ei1, ej0, ej1)
+                    d2_ipc = ipctk.line_line_distance(ei0, ei1, ej0, ej1)
+                    # print(f"valid = {validnp[i]}, d2 = {d2np[i]}, d2_ipc = {d2_ipc}")
+                    # print(f"ee_grad = {ee_grad}\nref = {gee_ipc}\ndiff = {(ee_grad - gee_ipc)}")
+                    # print(f"H = {Hpt}\nref = {Hee_ipc}, diff = {(Hpt - Hee_ipc)}")
 
 
-                B_ = barrier_derivative(d2_ipc)
-                B__ = barrier_derivative2(d2_ipc)
-                Hee = Hee_ipc
-                ee_grad = gee_ipc
-                        
-                        
-                        
-            Hipc = Hpt * B_ + np.outer(ee_grad, ee_grad) * B__ 
+                    B_ = barrier_derivative(d2_ipc)
+                    B__ = barrier_derivative2(d2_ipc)
+                    Hee = Hee_ipc
+                    ee_grad = gee_ipc
+                            
+                            
+                            
+                Hipc = Hee * B_ + np.outer(ee_grad, ee_grad) * B__ 
 
-            g = JTg(Jeinp[i], Jejnp[i], ee_grad)
-            g *= B_
-            # H12 tested
-            Hi, Hj, Hij = JTH12J(Hipc, Jeinp[i], Jejnp[i])
+                g = JTg(Jeinp[i], Jejnp[i], ee_grad)
+                g *= B_
+                # H12 tested
+                Hi, Hj, Hij = JTH12J(Hipc, Jeinp[i], Jejnp[i])
 
-            gnp[i] = g
-            Hinp[i] = Hi
-            Hjnp[i] = Hj
-            Hijnp[i] = Hij
+                gnp[i] = g
+                Hinp[i] = Hi
+                Hjnp[i] = Hj
+                Hijnp[i] = Hij
 
     put_grad(grad, gnp, ee_list)
     put_hess(blocks, Hinp, Hjnp, Hijnp, ee_list, nij, n_bodies)

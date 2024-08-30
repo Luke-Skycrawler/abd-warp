@@ -53,8 +53,8 @@ def dbdx(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     e1 = x3 - x2
     e2 = x2 - x0
 
-    bet = (wp.dot(e1, e1) * wp.dot(e2, e0) - wp.dot(e2, e1) * wp.dot(e0, e1)) / (wp.dot(e0, e0) * wp.dot(e1, e1) - wp.dot(e0, e1) * wp.dot(e0, e1))
-
+    bet, _ = beta_gamma_ee(x0, x1, x2, x3)
+    
     e1n2 = wp.dot(e1, e1)
     e0n2 = wp.dot(e0, e0)
     e0d1 = wp.dot(e0, e1)
@@ -121,12 +121,15 @@ def beta_gamma_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     e1 = x3 - x2
     e2 = x2 - x0
 
-    e0x12 = wp.dot(wp.cross(e0, e1), wp.cross(e0, e1))
+    e0Te0 = wp.dot(e0, e0)
+    e0Te1 = wp.dot(e0, e1)
+    e1Te1 = wp.dot(e1, e1)
+    A = wp.mat22(e0Te0, e0Te1, e0Te1, e1Te1)
+    b = wp.vec2(wp.dot(e0, e2), wp.dot(e1, e2))
 
-    bet = (wp.dot(e1, e1) * wp.dot(e0, e2) - wp.dot(e2, e1) * wp.dot(e0, e1)) / e0x12
-    gam = (wp.dot(e0, e0) * wp.dot(e2, e1) - wp.dot(e2, e0) * wp.dot(e0, e1)) / e0x12
+    beta_gamma = wp.inverse(A) @ b
 
-    return bet, gam
+    return beta_gamma[0], beta_gamma[1]
 
 @wp.func
 def dceedx_s(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
@@ -139,9 +142,7 @@ def dceedx_s(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
     e0x12 = wp.dot(wp.cross(e0, e1), wp.cross(e0, e1))
 
     al = wp.dot(e0, e1) / wp.dot(e0, e0)
-    bet = (wp.dot(e1, e1) * wp.dot(e0, e2) - wp.dot(e2, e1) * wp.dot(e0, e1)) / e0x12
-    gam = (wp.dot(e0, e0) * wp.dot(e2, e1) - wp.dot(e2, e0) * wp.dot(e0, e1)) / e0x12
-
+    bet, gam = beta_gamma_ee(x0, x1, x2, x3)
     mat34 = wp.matrix(dtype = float, shape = (3, 4))
 
     mat34[0, 0] = -1.0

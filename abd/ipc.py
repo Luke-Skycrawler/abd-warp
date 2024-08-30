@@ -195,4 +195,5 @@ if __name__ == "__main__":
 
         ipc_term_ee(1, ee_list, bodies, g, H)
 
-    test_ee()
+    # test_ee()
+    test1()

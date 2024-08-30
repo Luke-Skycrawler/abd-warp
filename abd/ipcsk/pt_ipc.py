@@ -7,8 +7,9 @@ from ccd import verify_root_pt, verify_root_ee
 from typing import Any
 from psd.hl import signed_distance, eig_Hl_tid, gl
 import ipctk
+import abdtk
 
-ipctk_ref = True
+ipctk_ref = False
 @wp.kernel
 def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
     i = wp.tid()
@@ -57,6 +58,7 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     Hjnp = np.zeros((npt, 12, 12))
     Hijnp = np.zeros((npt, 12, 12))
     ptnp = pt_list.numpy()
+    ijnp = np.delete(ptnp, 2, 1)
     d2min = np.min(d2np) if len(d2np) else 1.0
     # if npt > 0 and d2min < d2hat:
     #     # print(f"colision detected, list = {ptnp}")
@@ -111,66 +113,76 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
         # if True:
         if d2np[i] < d2hat and validnp[i]:
         # if d2np[i] < d2hat:
-            I = ptnp[i, 1]
-            highlight[I] = True
+            with wp.ScopedTimer(f"pt contact {i}"):
+                I = ptnp[i, 1]
+                highlight[I] = True
 
-            B_ = barrier_derivative_np(d2np[i])
-            B__ = barrier_derivative2_np(d2np[i])
-            print(f"pt contact {i}, d^2 = {d2np[i]}")
-            pt_grad, g = extract_g(Qnp[i], dcdxnp[i], Jpnp[i], Jtnp[i])
-            
-            qq = extract_Q(Qnp[i])
-            Hl_pos = QLQinv(qq, Lamnp[i])
-
-
-            Hpt = dcTHldc(dcdxnp[i], Hl_pos)
-
-            if ipctk_ref:
-                p = xnp[i, 0]
-                t0 = xnp[i, 1]
-                t1 = xnp[i, 2]
-                t2 = xnp[i, 3]
-
-                gpt_ipc = ipctk.point_plane_distance_gradient(p, t0, t1, t2)
-                Hpt_ipc = ipctk.point_plane_distance_hessian(p, t0, t1, t2)
-                d2_ipc = ipctk.point_plane_distance(p, t0, t1, t2)
-                # gpt_ipc = ipctk.point_triangle_distance_gradient(p, t0, t1, t2)
-                # Hpt_ipc = ipctk.point_triangle_distance_hessian(p, t0, t1, t2)
-                # d2_ipc = ipctk.point_triangle_distance(p, t0, t1, t2)
+                B_ = barrier_derivative_np(d2np[i])
+                B__ = barrier_derivative2_np(d2np[i])
+                print(f"pt contact {i}, d^2 = {d2np[i]}")
+                pt_grad, g = extract_g(Qnp[i], dcdxnp[i], Jpnp[i], Jtnp[i])
                 
-                print(f"valid = {validnp[i]}")
-                print(f"d2 = {d2np[i]}, d2_ipc = {d2_ipc}, diff = {d2np[i] - d2_ipc}")
-                print(f"gpt = {pt_grad}, \nref = {gpt_ipc}, \n diff = {pt_grad - gpt_ipc}")
-                print(f"Hpt = {Hpt}, \nref = {Hpt_ipc}, \n diff = {Hpt - Hpt_ipc}")
-            
-
-            
-                B_ = barrier_derivative_np(d2_ipc)
-                B__ = barrier_derivative2_np(d2_ipc)
-                Hpt = Hpt_ipc
-                pt_grad = gpt_ipc
-
-            # if d2np[i] < d2hat:
-            #     print(f"pt contact {i}, d^2 = {d2np[i]}")
-            #     print(f"B. = {B_}")
-            #     print(f"B.. = {B__}")
-            #     print(f"g = {g}")
-            # else: 
-            #     print(f"pt contact {i}, d^2 = {d2np[i]}")
+                qq = extract_Q(Qnp[i])
+                Hl_pos = QLQinv(qq, Lamnp[i])
 
 
+                Hpt = dcTHldc(dcdxnp[i], Hl_pos)
 
-            Hipc = Hpt * B_ + np.outer(pt_grad, pt_grad) * B__ 
+                if ipctk_ref:
+                    p = xnp[i, 0]
+                    t0 = xnp[i, 1]
+                    t1 = xnp[i, 2]
+                    t2 = xnp[i, 3]
 
-            g = JTg(Jpnp[i], Jtnp[i], pt_grad)
-            g *= B_
-            # H12 tested
-            Hi, Hj, Hij = JTH12J(Hipc, Jpnp[i], Jtnp[i])
+                    gpt_ipc = ipctk.point_plane_distance_gradient(p, t0, t1, t2)
+                    Hpt_ipc = ipctk.point_plane_distance_hessian(p, t0, t1, t2)
+                    d2_ipc = ipctk.point_plane_distance(p, t0, t1, t2)
+                    # gpt_ipc = ipctk.point_triangle_distance_gradient(p, t0, t1, t2)
+                    # Hpt_ipc = ipctk.point_triangle_distance_hessian(p, t0, t1, t2)
+                    # d2_ipc = ipctk.point_triangle_distance(p, t0, t1, t2)
+                    
+                    # print(f"valid = {validnp[i]}")
+                    # print(f"d2 = {d2np[i]}, d2_ipc = {d2_ipc}, diff = {d2np[i] - d2_ipc}")
+                    # print(f"gpt = {pt_grad}, \nref = {gpt_ipc}, \n diff = {pt_grad - gpt_ipc}")
+                    # print(f"Hpt = {Hpt}, \nref = {Hpt_ipc}, \n diff = {Hpt - Hpt_ipc}")
+                
 
-            gnp[i] = g
-            Hinp[i] = Hi
-            Hjnp[i] = Hj
-            Hijnp[i] = Hij
+                
+                    B_ = barrier_derivative_np(d2_ipc)
+                    B__ = barrier_derivative2_np(d2_ipc)
+                    Hpt = Hpt_ipc
+                    pt_grad = gpt_ipc
+
+                # if d2np[i] < d2hat:
+                #     print(f"pt contact {i}, d^2 = {d2np[i]}")
+                #     print(f"B. = {B_}")
+                #     print(f"B.. = {B__}")
+                #     print(f"g = {g}")
+                # else: 
+                #     print(f"pt contact {i}, d^2 = {d2np[i]}")
+
+
+
+                Hipc = Hpt * B_ + np.outer(pt_grad, pt_grad) * B__ 
+                pt_type = abdtk.PointTriangleDistanceType.P_T
+                Hipc_ref, g_ref = abdtk.ipc_hess_pt_12x12(xnp[i], ijnp[i], pt_type, d2np[i])
+
+                g = JTg(Jpnp[i], Jtnp[i], pt_grad)
+                pt_grad *= B_
+                g *= B_
+
+                print(
+                    # "hessian (psd projected) = ", Hipc,
+                    # "gradient = ", pt_grad, 
+                    # "ref = ", Hipc_ref, g_ref, 
+                    "diff =", np.max(np.abs(Hipc - Hipc_ref)), np.max(np.abs(pt_grad - g_ref)))
+                # H12 tested
+                Hi, Hj, Hij = JTH12J(Hipc, Jpnp[i], Jtnp[i])
+
+                gnp[i] = g
+                Hinp[i] = Hi
+                Hjnp[i] = Hj
+                Hijnp[i] = Hij
 
     put_grad(grad, gnp, pt_list)
     put_hess(blocks, Hinp, Hjnp, Hijnp, pt_list, nij, n_bodies)
@@ -251,10 +263,10 @@ def _Q_lambda_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype =Any),
     lam0, lam1, lam2, lam3 = eig_Hl_tid(e0p, e1p, e2p, q, i)
     l = signed_distance(e0p, e1p, e2p)
 
-    # lam0 = wp.max(lam0, 0.0)
-    # lam1 = wp.max(lam1, 0.0)
-    # lam2 = wp.max(lam2, 0.0)
-    # lam3 = wp.max(lam3, 0.0)
+    lam0 = wp.max(lam0, 0.0)
+    lam1 = wp.max(lam1, 0.0)
+    lam2 = wp.max(lam2, 0.0)
+    lam3 = wp.max(lam3, 0.0)
 
     lam[i, 0] = lam0
     lam[i, 1] = lam1
