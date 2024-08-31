@@ -137,7 +137,7 @@ def pt_collision_time(
 ):
     n_roots, roots = build_and_solve_4_points_coplanar(p0_t0, p1_t0, p2_t0, p3_t0, p0_t1, p1_t1, p2_t1, p3_t1)
 
-    root = float(0.0)
+    root = float(1.0)
     true_root = bool(False)
     for i in range(n_roots):
         root = roots[i]
@@ -156,21 +156,25 @@ def pt_collision_time(
 
 @wp.func
 def ee_collision_time(
-    ei0_e0: wp.vec3, ei0_e1: wp.vec3, 
-    ej0_e0: wp.vec3, ej0_e1: wp.vec3,
-    ei1_e0: wp.vec3, ei1_e1: wp.vec3,
-    ej1_e0: wp.vec3, ej1_e1: wp.vec3
+    ei0_t0: wp.vec3,  
+    ei1_t0: wp.vec3, 
+    ej0_t0: wp.vec3, 
+    ej1_t0: wp.vec3, 
+    ei0_t1: wp.vec3,
+    ei1_t1: wp.vec3,
+    ej0_t1: wp.vec3,
+    ej1_t1: wp.vec3
 ):
-    n_roots, roots = build_and_solve_4_points_coplanar(ei0_e0, ei0_e1, ei1_e0, ei1_e1, ej0_e0, ej0_e1, ej1_e0, ej1_e1)
+    n_roots, roots = build_and_solve_4_points_coplanar(ei0_t0, ei1_t0, ej0_t0, ej1_t0, ei0_t1, ei1_t1, ej0_t1, ej1_t1)
 
-    root = float(0.0)
+    root = float(1.0)
     true_root = bool(False)
     for i in range(n_roots):
         root = roots[i]
-        ei0 = wp.lerp(ei0_e0, ei0_e1, root)
-        ei1 = wp.lerp(ei1_e0, ei1_e1, root)
-        ej0 = wp.lerp(ej0_e0, ej0_e1, root)
-        ej1 = wp.lerp(ej1_e0, ej1_e1, root)
+        ei0 = wp.lerp(ei0_t0, ei0_t1, root)
+        ei1 = wp.lerp(ei1_t0, ei1_t1, root)
+        ej0 = wp.lerp(ej0_t0, ej0_t1, root)
+        ej1 = wp.lerp(ej1_t0, ej1_t1, root)
         true_root = verify_root_ee(ei0, ei1, ej0, ej1)
         if true_root:
             break
