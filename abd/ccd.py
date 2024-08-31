@@ -4,6 +4,7 @@ from psd.ee import beta_gamma_ee
 from psd.vf import beta_gamma_pt
 from affine_body import fetch_vertex, fetch_xk, fetch_ee, fetch_pt, fetch_pt_xk, fetch_ee_xk, vg_distance
 from typing import Any
+import abdtk
 
 @wp.kernel
 def toi_vg(bodies: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), toi: wp.array(dtype = float)):
@@ -192,4 +193,87 @@ def vg_collison_time(pt0: wp.vec3, pt1: wp.vec3):
         d0 = vg_distance(pt0)
         toi = d0 / (d0 - d1)
     return toi
+
+@wp.kernel
+def get_vertices_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+    i = wp.tid()
+    p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
+    x[i, 0] = p
+    x[i, 1] = t0
+    x[i, 2] = t1
+    x[i, 3] = t2
+
+@wp.kernel
+def get_vertices_pt_xk(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+    i = wp.tid()
+    p, t0, t1, t2 = fetch_pt_xk(pt_list[i], bodies)
+    x[i, 0] = p
+    x[i, 1] = t0
+    x[i, 2] = t1
+    x[i, 3] = t2
+
+@wp.kernel
+def get_vertices_ee_xk(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+    i = wp.tid()
+    p, t0, t1, t2 = fetch_ee_xk(ee_list[i], bodies)
+    x[i, 0] = p
+    x[i, 1] = t0
+    x[i, 2] = t1
+    x[i, 3] = t2
+
+@wp.kernel
+def get_vertices_ee(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+    i = wp.tid()
+    p, t0, t1, t2 = fetch_ee(ee_list[i], bodies)
+    x[i, 0] = p
+    x[i, 1] = t0
+    x[i, 2] = t1
+    x[i, 3] = t2
+
+
+
+def toi_pt_abdtk(bodies, pt_list):
+    npt = pt_list.shape[0]
+    x_t0 = wp.zeros((pt_list.shape[0], 4), dtype = wp.vec3)
+    x_t1 = wp.zeros_like(x_t0)
+    wp.launch(get_vertices_pt, dim = pt_list.shape, inputs = [pt_list, bodies, x_t0])
+
+    wp.launch(get_vertices_pt_xk, dim = pt_list.shape, inputs = [pt_list, bodies, x_t1])    
+    
+    _t0 = x_t0.numpy()
+    _t1 = x_t1.numpy()
+
+    toi = 1.0
+
+    for i in range(npt):
+        t0 = _t0[i]
+        t1 = _t1[i]
+        t = abdtk.pt_collision_time(t0[0], t0[1], t0[2], t0[3], t1[0], t1[1], t1[2], t1[3])
+        toi = min(toi, t)
+        
+    return toi
+
+def toi_ee_abdtk(bodies, ee_list):  
+    nee = ee_list.shape[0]
+    x_t0 = wp.zeros((ee_list.shape[0], 4), dtype = wp.vec3)
+    x_t1 = wp.zeros_like(x_t0)
+    wp.launch(get_vertices_ee, dim = ee_list.shape, inputs = [ee_list, bodies, x_t0])
+
+    wp.launch(get_vertices_ee_xk, dim = ee_list.shape, inputs = [ee_list, bodies, x_t1])    
+    
+    _t0 = x_t0.numpy()
+    _t1 = x_t1.numpy()
+
+    toi = 1.0
+
+    for i in range(nee):
+        t0 = _t0[i]
+        t1 = _t1[i]
+        t = abdtk.pt_collision_time(t0[0], t0[1], t0[2], t0[3], t1[0], t1[1], t1[2], t1[3])
+        toi = min(toi, t)
+        
+    return toi
+
+        
+    
     

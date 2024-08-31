@@ -11,7 +11,7 @@ from simulator.fenwick import list_with_meta, compress
 from typing import List, Any
 # temporary
 from orthogonal_energy import _init, _set_triplets
-from ccd import toi_vg, toi_ee, toi_pt
+from ccd import toi_vg, toi_ee, toi_pt, toi_ee_abdtk, toi_pt_abdtk
 
 class AffineBodySimulator(BaseSimulator):
 
@@ -287,11 +287,14 @@ class AffineBodySimulator(BaseSimulator):
         if vg: 
             wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_affine_bodies, vg_list, toi])
         if ee:
-            wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
+            # wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
+            toiee = toi_ee_abdtk(self.warp_affine_bodies, ee_list)
         if pt:
-            wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
+            # wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
+            toipt = toi_pt_abdtk(self.warp_affine_bodies, pt_list)
 
         t = toi.numpy()[0] 
+        t = min(t, toiee, toipt)
         t = max(0.0, min(1.0, t))
         if t < 1.0:
             t *= 0.9
