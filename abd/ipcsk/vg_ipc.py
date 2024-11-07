@@ -1,5 +1,5 @@
 from ipcsk.barrier import *   
-from affine_body import vg_distance, AffineBody
+from affine_body import vg_distance, WarpMesh
 from typing import Any
 @wp.kernel
 def ipc_term_vg(vg_list: wp.array(dtype = wp.vec2i), 

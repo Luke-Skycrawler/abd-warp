@@ -1,7 +1,7 @@
 import warp as wp
 from typing import List
 import numpy as np
-from affine_body import AffineBody
+from affine_body import WarpMesh
 from simulator.fenwick import ListMeta, insert_overload
 insert_vec2i = insert_overload(wp.vec2i)
 mat32f = wp.types.matrix(shape = (3, 2), dtype = float)
@@ -149,7 +149,7 @@ class BvhBuilder:
         bvh_traj.refit()
         return bvh_traj
 
-    def build_body_bvh(self, bodies: List[AffineBody], dialation):
+    def build_body_bvh(self, bodies: List[WarpMesh], dialation):
 
         uppers = []
         lowers = []
@@ -166,7 +166,7 @@ class BvhBuilder:
         bvh = wp.Bvh(_lowers, _uppers)
         return bvh
 
-    def update_body_bvh(self, bodies: List[AffineBody], dialation, bvh: wp.Bvh):
+    def update_body_bvh(self, bodies: List[WarpMesh], dialation, bvh: wp.Bvh):
 
         uppers = []
         lowers = []
@@ -183,7 +183,7 @@ class BvhBuilder:
         bvh.refit()
         return bvh
 
-    def body_bvh_to_traj(self, bodies: List[AffineBody], bvh_body: wp.Bvh, bvh_traj: wp.Bvh):
+    def body_bvh_to_traj(self, bodies: List[WarpMesh], bvh_body: wp.Bvh, bvh_traj: wp.Bvh):
 
         uppers = []
         lowers = []

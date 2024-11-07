@@ -40,7 +40,7 @@ def affine_body_states_empty(n_bodies):
     return states
 
 @wp.struct
-class AffineBody:
+class WarpMesh:
     id: int
     x0: wp.array(dtype = wp.vec3)       # rest shape
     x: wp.array(dtype = wp.vec3)        # current position
@@ -53,7 +53,7 @@ class AffineBody:
 
 class AffineMesh(KineticMesh):
     '''
-    For io only. Send to AffineBody struct for CUDA simulation 
+    For io only. Send to WarpMesh struct for CUDA simulation 
     '''
     @classmethod
     def states_default(cls):
@@ -70,7 +70,7 @@ class AffineMesh(KineticMesh):
         super().__init__(obj_json)
         self.edges = igl.edges(self.F)
 
-    def assign_to(self, ab: AffineBody):
+    def assign_to(self, ab: WarpMesh):
         ab.triangles.assign(self.F)
         ab.edges.assign(self.edges)
 
@@ -81,8 +81,8 @@ class AffineMesh(KineticMesh):
         ab.x_view.assign(Vt)
         ab.xk.assign(Vt)
 
-    def warp_affine_body(self, id):
-        ab = AffineBody()
+    def warp_affine_body(self, id) -> WarpMesh:
+        ab = WarpMesh()
         ab.id = id
         ab.x0 = wp.zeros(self.V.shape[0], dtype = wp.vec3)
         ab.x = wp.zeros_like(ab.x0)
@@ -103,7 +103,7 @@ def vg_distance(v: wp.vec3) -> float:
     return v[1] - ground
 
 @wp.func
-def fetch_pt(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 
+def fetch_pt(ijpt: vec5i, bodies: wp.array(dtype = WarpMesh)): 
     I = ijpt[0]
     J = ijpt[1]
 
@@ -121,7 +121,7 @@ def fetch_pt(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)):
     return p, t0, t1, t2
 
 @wp.func
-def fetch_pt_x0(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 
+def fetch_pt_x0(ijpt: vec5i, bodies: wp.array(dtype = WarpMesh)): 
     I = ijpt[0]
     J = ijpt[1]
 
@@ -139,7 +139,7 @@ def fetch_pt_x0(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)):
     return p, t0, t1, t2
 
 @wp.func
-def fetch_pt_xk(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)): 
+def fetch_pt_xk(ijpt: vec5i, bodies: wp.array(dtype = WarpMesh)): 
     I = ijpt[0]
     J = ijpt[1]
 
@@ -157,7 +157,7 @@ def fetch_pt_xk(ijpt: vec5i, bodies: wp.array(dtype = AffineBody)):
     return p, t0, t1, t2
 
 @wp.func
-def fetch_ee(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
+def fetch_ee(ijee: vec5i, bodies: wp.array(dtype = WarpMesh)):
     I = ijee[0]
     J = ijee[1]
 
@@ -178,7 +178,7 @@ def fetch_ee(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
     return ei0, ei1, ej0, ej1
 
 @wp.func
-def fetch_ee_xk(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
+def fetch_ee_xk(ijee: vec5i, bodies: wp.array(dtype = WarpMesh)):
     I = ijee[0]
     J = ijee[1]
 
@@ -199,7 +199,7 @@ def fetch_ee_xk(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
     return ei0, ei1, ej0, ej1
 
 @wp.func
-def fetch_ee_x0(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
+def fetch_ee_x0(ijee: vec5i, bodies: wp.array(dtype = WarpMesh)):
     I = ijee[0]
     J = ijee[1]
 
@@ -220,14 +220,14 @@ def fetch_ee_x0(ijee: vec5i, bodies: wp.array(dtype = AffineBody)):
     return ei0, ei1, ej0, ej1
 
 @wp.func
-def fetch_vertex(ip: wp.vec2i, bodies: wp.array(dtype = AffineBody)):
+def fetch_vertex(ip: wp.vec2i, bodies: wp.array(dtype = WarpMesh)):
     I = ip[0]
     pid = ip[1]
 
     return bodies[I].x[pid]
 
 @wp.func
-def fetch_xk(ip: wp.vec2i, bodies: wp.array(dtype = AffineBody)):
+def fetch_xk(ip: wp.vec2i, bodies: wp.array(dtype = WarpMesh)):
     I = ip[0]
     pid = ip[1]
 

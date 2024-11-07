@@ -1,6 +1,6 @@
 from const_params import *
 from simulator.base import BaseSimulator
-from affine_body import AffineBody, AffineMesh, AffineBodyStates, affine_body_states_empty
+from affine_body import WarpMesh, AffineMesh, AffineBodyStates, affine_body_states_empty
 from warp.utils import array_inner
 from warp.optim.linear import bicgstab
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
@@ -25,7 +25,7 @@ class AffineBodySimulator(BaseSimulator):
         self.n_bodies = n_bodies
         '''
         A, p, Adot, pdot flattened together
-        while mesh information is stored in AffineBody struct
+        while mesh information is stored in WarpMesh struct
 
         # A[0], A[1], A[2] are the degrees of freedom
         # to project a vertice, use A.T @ x + p
@@ -67,12 +67,12 @@ class AffineBodySimulator(BaseSimulator):
         self.ipc_contact = IPCContactEnergy()
         self.bb = BvhBuilder()
 
-        # self.affine_bodies = wp.array([ko.warp_affine_body() for ko in self.scene.kinetic_objects], dtype = AffineBody)
-        self.affine_bodies = [ko.warp_affine_body(i) for i, ko in enumerate(self.scene.kinetic_objects)]
-        self.warp_affine_bodies = wp.array(self.affine_bodies, dtype = AffineBody)
+        # self.meshes = wp.array([ko.warp_affine_body() for ko in self.scene.kinetic_objects], dtype = WarpMesh)
+        self.meshes = [ko.warp_affine_body(i) for i, ko in enumerate(self.scene.kinetic_objects)]
+        self.warp_meshes = wp.array(self.meshes, dtype = WarpMesh)
 
-        self.bvh_bodies: wp.Bvh = self.bb.build_body_bvh(self.affine_bodies, dhat * 0.5)
-        self.bvh_body_traj: wp.Bvh = self.bb.build_body_bvh(self.affine_bodies, dhat * 0.5)
+        self.bvh_bodies: wp.Bvh = self.bb.build_body_bvh(self.meshes, dhat * 0.5)
+        self.bvh_body_traj: wp.Bvh = self.bb.build_body_bvh(self.meshes, dhat * 0.5)
 
         self.bvh_triangles: List[wp.Bvh] = []
         self.bvh_edges: List[wp.Bvh] = []
@@ -83,7 +83,7 @@ class AffineBodySimulator(BaseSimulator):
         self.bvh_point_traj: List[wp.Bvh] = []
 
         
-        for b in self.affine_bodies:
+        for b in self.meshes:
             self.bvh_triangles.append(self.bb.bulid_triangle_bvh(b.x, b.triangles, 0.0))
             self.bvh_edges.append(self.bb.build_edge_bvh(b.x, b.edges, dhat * 0.5))
             self.bvh_points.append(self.bb.build_point_bvh(b.x, dhat))
@@ -100,7 +100,7 @@ class AffineBodySimulator(BaseSimulator):
         self.states.pdot.assign(self.gather("pdot"))
         self.states.Adot.assign(self.gather("Adot"))
         self.dq.zero_()
-        for _, ab in zip(self.scene.kinetic_objects, self.affine_bodies): 
+        for _, ab in zip(self.scene.kinetic_objects, self.meshes): 
             _.assign_to(ab)
         
 
@@ -136,7 +136,7 @@ class AffineBodySimulator(BaseSimulator):
 
         ij_list, pt_list, ee_list, vg_list = self.collision_set()
 
-        e_c = self.ipc_contact.energy([ee_list, pt_list, vg_list, self.warp_affine_bodies])
+        e_c = self.ipc_contact.energy([ee_list, pt_list, vg_list, self.warp_meshes])
         e_i = self.inertia.energy(self.states)
         return e_c + e_i
 
@@ -168,11 +168,11 @@ class AffineBodySimulator(BaseSimulator):
         return ij_list
 
     def trajectory_intersection_set(self):
-        self.bb.body_bvh_to_traj(self.affine_bodies, self.bvh_bodies, self.bvh_body_traj)
+        self.bb.body_bvh_to_traj(self.meshes, self.bvh_bodies, self.bvh_body_traj)
         ij_list = self.ij_list(self.bvh_body_traj)
 
         for i in range(self.n_bodies):
-            b = self.affine_bodies[i]
+            b = self.meshes[i]
             self.bb.triangle_bvh_to_traj(b.xk, b.triangles, self.bvh_triangles[i], self.bvh_triangle_traj[i])
             self.bb.edge_bvh_to_traj(b.xk, b.edges, self.bvh_edges[i], self.bvh_edge_traj[i])
             self.bb.point_bvh_to_traj(b.xk, self.bvh_points[i], self.bvh_point_traj[i])
@@ -181,7 +181,7 @@ class AffineBodySimulator(BaseSimulator):
         # pt_list = cull(ij_list, self.bvh_triangle_traj, self.bvh_point_traj)
         pt_list = cull(ij_list, self.bvh_point_traj, self.bvh_triangle_traj)
 
-        vg_list = cull_vg(self.bvh_body_traj.lowers, self.bvh_point_traj, self.warp_affine_bodies)
+        vg_list = cull_vg(self.bvh_body_traj.lowers, self.bvh_point_traj, self.warp_meshes)
         return ij_list, pt_list, ee_list, vg_list
 
     def collision_set(self):
@@ -190,10 +190,10 @@ class AffineBodySimulator(BaseSimulator):
         '''
 
         bvh_bodies = self.bvh_bodies
-        self.bb.update_body_bvh(self.affine_bodies, dhat * 0.5, bvh_bodies)
+        self.bb.update_body_bvh(self.meshes, dhat * 0.5, bvh_bodies)
         ij_list = self.ij_list(bvh_bodies)
 
-        for b, t, e, p in zip(self.affine_bodies, self.bvh_triangles, self.bvh_edges, self.bvh_points):
+        for b, t, e, p in zip(self.meshes, self.bvh_triangles, self.bvh_edges, self.bvh_points):
             self.bb.update_triangle_bvh(b.xk, b.triangles, 0.0, t)
             self.bb.update_edge_bvh(b.xk, b.edges, dhat * 0.5, e)
             self.bb.update_point_bvh(b.xk, dhat, p)
@@ -202,7 +202,7 @@ class AffineBodySimulator(BaseSimulator):
         # pt_list = cull(ij_list, self.bvh_triangles, self.bvh_points)
         pt_list = cull(ij_list, self.bvh_points, self.bvh_triangles)
 
-        vg_list = cull_vg(bvh_bodies.lowers, self.bvh_points, self.warp_affine_bodies)
+        vg_list = cull_vg(bvh_bodies.lowers, self.bvh_points, self.warp_meshes)
         return ij_list, ee_list, pt_list, vg_list
     
     def V_gets_V(self, states):
@@ -234,7 +234,7 @@ class AffineBodySimulator(BaseSimulator):
             # ipc_contact.gradient([g, states, ij_list, ee_list, pt_list])
             # ipc_contact.hessian([self.blocks, states, ij_list, ee_list, pt_list])
 
-            self.highlight[:] = ipc_contact.gh([pt_list, ee_list, vg_list, nij, self.warp_affine_bodies, g, self.blocks])
+            self.highlight[:] = ipc_contact.gh([pt_list, ee_list, vg_list, nij, self.warp_meshes, g, self.blocks])
 
             rows.zero_()
             cols.zero_()
@@ -285,23 +285,24 @@ class AffineBodySimulator(BaseSimulator):
         dim_ee = ee_list.shape[0]
         dim_pt = pt_list.shape[0]
         if vg: 
-            wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_affine_bodies, vg_list, toi])
-        if ee:
-            # wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_affine_bodies, ee_list, toi])
-            toiee = toi_ee_abdtk(self.warp_affine_bodies, ee_list)
-        if pt:
-            # wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_affine_bodies, pt_list, toi])
-            toipt = toi_pt_abdtk(self.warp_affine_bodies, pt_list)
+            wp.launch(toi_vg, (dim_vg, ), inputs = [self.warp_meshes, vg_list, toi])
 
         t = toi.numpy()[0] 
-        t = min(t, toiee, toipt)
+        if ee:
+            # wp.launch(toi_ee, (dim_ee,), inputs = [self.warp_meshes, ee_list, toi])
+            toiee = toi_ee_abdtk(self.warp_meshes, ee_list)
+            t = min(t, toiee)
+        if pt:
+            # wp.launch(toi_pt, (dim_pt, ), inputs = [self.warp_meshes, pt_list, toi])
+            toipt = toi_pt_abdtk(self.warp_meshes, pt_list)
+            t = min(t, toipt)
         t = max(0.0, min(1.0, t))
         if t < 1.0:
             t *= 0.9
         return t
 
     def update_mesh_vertex(self, field = "x"):
-        abs = self.affine_bodies
+        abs = self.meshes
     
         Anp = self.states.A0.numpy() if field == "x_view" else self.states.Ak.numpy() if field == "xk" else self.states.A.numpy()
         pnp = self.states.p0.numpy() if field == "x_view" else self.states.pk.numpy() if field == "xk" else self.states.p.numpy()
@@ -391,7 +392,7 @@ if __name__ == "__main__":
 
     
     bodies = sim.scene.kinetic_objects
-    affine_bodies = sim.affine_bodies
+    meshes = sim.meshes
     frame = 0
     paused = False
     def key_callback(key, modifier):
@@ -405,7 +406,7 @@ if __name__ == "__main__":
         global frame, sim, paused
         if not paused:
             sim.step(frame)
-        for i, body in enumerate(affine_bodies):
+        for i, body in enumerate(meshes):
             V = body.x_view.numpy()
             b = sim.scene.kinetic_objects[i]
             viewer.set_mesh(V, b.F, i)
@@ -419,7 +420,7 @@ if __name__ == "__main__":
 
     # while(True):
     #     sim.step(frame)
-    #     for ab, viewer_mesh in zip(affine_bodies, ps_meshes):
+    #     for ab, viewer_mesh in zip(meshes, ps_meshes):
     #         viewer_mesh.update_vertex_positions(ab.x_view.numpy())    
     #     frame += 1
             

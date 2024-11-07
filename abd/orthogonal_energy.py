@@ -1,5 +1,5 @@
 from const_params import *
-from affine_body import AffineBody, AffineBodyStates, affine_body_states_empty
+from affine_body import WarpMesh, AffineBodyStates, affine_body_states_empty
 # from bsr_utils import bsr_cg
 from warp.optim.linear import cg, bicgstab
 from sparse import BSR, bsr_empty

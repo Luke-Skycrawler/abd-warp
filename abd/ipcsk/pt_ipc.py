@@ -2,7 +2,7 @@ from const_params import *
 from ipcsk.barrier import *
 from ipcsk.put import put_grad, put_hess
 from psd.vf import beta_gamma_pt, C_vf, dcvfdx_s
-from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk, fetch_pt_x0, fetch_ee_x0
+from affine_body import WarpMesh, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk, fetch_pt_x0, fetch_ee_x0
 from ccd import verify_root_pt, verify_root_ee
 from typing import Any
 from psd.hl import signed_distance, eig_Hl_tid, gl

@@ -5,7 +5,7 @@ from typing import Any
 from psd.ee import beta_gamma_ee, C_ee, dceedx_s
 from psd.hl import signed_distance, eig_Hl_tid, gl
 from psd.vf import beta_gamma_pt, C_vf, dcvfdx_s
-from affine_body import AffineBody, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk, fetch_pt_x0, fetch_ee_x0
+from affine_body import WarpMesh, fetch_ee, fetch_pt, vg_distance, fetch_vertex, fetch_pt_xk, fetch_ee_xk, fetch_pt_x0, fetch_ee_x0
 from ccd import verify_root_pt, verify_root_ee
 from scipy.linalg import eigh
 from ipcsk.energy import ipc_energy_ee, ipc_energy_pt, ipc_energy_vg
@@ -76,7 +76,7 @@ if __name__ == "__main__":
             
         vg_list = wp.zeros((1,), dtype = wp.vec2i)
         _bodies = []
-        a = AffineBody()
+        a = WarpMesh()
         a.x = wp.zeros((1, ), dtype = wp.vec3)
         a.x0 = wp.zeros((1, ), dtype = wp.vec3)
         a.xk = wp.zeros((1, ), dtype = wp.vec3)
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         a.edges = wp.zeros((1, 2), dtype = int)
 
         _bodies.append(a)
-        bodies = wp.array(_bodies, dtype = AffineBody)
+        bodies = wp.array(_bodies, dtype = WarpMesh)
 
         g = wp.zeros((4, ), dtype = wp.vec3)
         blocks = wp.zeros((16, ), dtype = wp.mat33)
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         ])
 
         _bodies = []
-        a = AffineBody()
+        a = WarpMesh()
         a.x = wp.zeros((1, ), dtype = wp.vec3)
         a.x0 = wp.zeros((1, ), dtype = wp.vec3)
         a.xk = wp.zeros((1, ), dtype = wp.vec3)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         a.x_view.assign(ax)
         _bodies.append(a)
 
-        b = AffineBody()
+        b = WarpMesh()
         b.x = wp.zeros((3, ), dtype = wp.vec3)
         b.x0 = wp.zeros_like(b.x)
         b.xk = wp.zeros_like(b.x)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         b.x_view.assign(bx)
         _bodies.append(b)
 
-        bodies = wp.array(_bodies, dtype = AffineBody)
+        bodies = wp.array(_bodies, dtype = WarpMesh)
 
         g = wp.zeros((8,), dtype = wp.vec3)
         H = wp.zeros((4 * 16), dtype = wp.mat33)
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         ])
 
         _bodies = []
-        a = AffineBody()
+        a = WarpMesh()
         a.x = wp.zeros((2, ), dtype = wp.vec3)
         a.x0 = wp.zeros((2, ), dtype = wp.vec3)
         a.xk = wp.zeros((2, ), dtype = wp.vec3)
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         a.edges.assign(np.array([[0, 1]]))
         _bodies.append(a)
 
-        b = AffineBody()
+        b = WarpMesh()
         b.x = wp.zeros((2, ), dtype = wp.vec3)
         b.x0 = wp.zeros_like(b.x)
         b.xk = wp.zeros_like(b.x)
@@ -186,7 +186,7 @@ if __name__ == "__main__":
         b.x_view.assign(bx)
         _bodies.append(b)
 
-        bodies = wp.array(_bodies, dtype = AffineBody)
+        bodies = wp.array(_bodies, dtype = WarpMesh)
 
         g = wp.zeros((8,), dtype = wp.vec3)
         H = wp.zeros((4 * 16), dtype = wp.mat33)

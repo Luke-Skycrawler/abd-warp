@@ -1,5 +1,5 @@
 from const_params import *
-from affine_body import AffineBody
+from affine_body import WarpMesh
 from typing import List, Any
 from simulator.fenwick import ListMeta, insert_overload, list_with_meta, compress
 

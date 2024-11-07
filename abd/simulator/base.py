@@ -36,6 +36,9 @@ class BaseSimulator:
 
         for key, value in sim_args.items():
             if key in config:
+                value = config[key]
+                setattr(self, key, value)
+            else:
                 setattr(self, key, value)
 
         scene_config = config["scene"]

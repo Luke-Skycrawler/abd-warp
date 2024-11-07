@@ -11,7 +11,7 @@ elif test == "ee":
     from ipcsk.ee_ipc import ipc_term_ee, _mask_valid
 
 from culling import cull, BvhBuilder, cull_
-from affine_body import AffineBody
+from affine_body import WarpMesh
 import igl
 seed = 114514
 @wp.kernel
@@ -117,7 +117,7 @@ def test_continous():
     pt_list.assign(ptnp)
 
     _bodies = []
-    a = AffineBody()
+    a = WarpMesh()
     a.x = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
     a.x0 = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
     a.xk = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
@@ -134,7 +134,7 @@ def test_continous():
     a.edges.assign(E)
     _bodies.append(a)
 
-    b = AffineBody()
+    b = WarpMesh()
     b.x = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
     b.x0 = wp.zeros_like(b.x)
     b.xk = wp.zeros_like(b.x)
@@ -152,7 +152,7 @@ def test_continous():
     b.edges.assign(E)
     _bodies.append(b)
 
-    bodies = wp.array(_bodies, dtype = AffineBody)
+    bodies = wp.array(_bodies, dtype = WarpMesh)
 
     g = wp.zeros((8,), dtype = wp.vec3)
     H = wp.zeros((4 * 16), dtype = wp.mat33)
