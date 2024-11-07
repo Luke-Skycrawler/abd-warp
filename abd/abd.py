@@ -332,9 +332,6 @@ class AffineBodySimulator(BaseSimulator):
         wp.launch(_update_q0qdot, self.n_bodies, inputs = [self.states])
 
     
-    def init(self):
-        # temp
-        wp.launch(_init, self.n_bodies, inputs = [self.states])
 
 @wp.kernel
 def _update_q(states: AffineBodyStates, dq: wp.array(dtype = wp.vec3), alpha: float):
@@ -370,7 +367,7 @@ if __name__ == "__main__":
     wp.init()
     np.printoptions(precision = 4, suppress=True)
     sim = AffineBodySimulator(config_file = "config.json")
-    sim.init()
+    sim.reset()
     viewer=fc.fast_cd_viewer()
     # ps.init()
 

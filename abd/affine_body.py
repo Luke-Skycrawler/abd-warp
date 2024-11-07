@@ -63,7 +63,7 @@ class AffineMesh(KineticMesh):
             "Adot": np.zeros((3,3), dtype = float),
             "pdot": np.zeros(3, dtype = float),
             "mass": 1.0,
-            "I0": np.identity(3, dtype = float)
+            "I0": np.identity(3, dtype = float) / 12
         }
     
     def __init__(self, obj_json):

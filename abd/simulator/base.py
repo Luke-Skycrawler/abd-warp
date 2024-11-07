@@ -44,7 +44,9 @@ class BaseSimulator:
         scene_config = config["scene"]
         self.scene = Scene(member_type=member_type, scene_config_file = scene_config)
 
-        
+    def reset(self): 
+        pass
+    
     @classmethod
     def bgeo_object_attributes(cls):
         '''
