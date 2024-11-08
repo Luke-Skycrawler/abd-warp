@@ -9,8 +9,8 @@ def barrier(d: scalar) -> scalar:
         ret = kappa * - wp.pow((dbydhat - scalar(scalar(1.0))), scalar(scalar(2.0))) * wp.log(dbydhat)
     return ret
 
-def barrier_np(d: scalar) -> scalar:
-    ret = scalar(0.0)
+def barrier_np(d):
+    ret = 0.0
 
     if d < d2hat:
         dbydhat = d / d2hat
@@ -25,11 +25,11 @@ def barrier_derivative(d: scalar) -> scalar:
 
     return ret
 
-def barrier_derivative_np(d: scalar) -> scalar:
+def barrier_derivative_np(d):
     ret = 0.0
     _d2hat = float(d2hat)
     if d < _d2hat:
-        ret = kappa * (_d2hat - d) * (2.0 * np.log(d / _d2hat) + (d - _d2hat) / d) / (_d2hat * _d2hat)
+        ret = float(kappa) * (_d2hat - d) * (2.0 * np.log(d / _d2hat) + (d - _d2hat) / d) / (_d2hat * _d2hat)
 
     return ret
 

@@ -1,6 +1,12 @@
 import warp as wp
 import numpy as np
 
+# vec3 = wp.vec3
+# mat33 = wp.mat33
+# scalar = wp.float32
+# vec4 = wp.vec4
+# vec2 = wp.vec2
+# mat22 = wp.mat22
 vec3 = wp.vec3d
 mat33 = wp.mat33d
 scalar = wp.float64
