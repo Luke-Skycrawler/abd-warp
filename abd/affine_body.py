@@ -2,31 +2,31 @@ from simulator.scene import KineticMesh, Scene
 import warp as wp
 import numpy as np
 import igl
-from const_params import ground, vec5i
+from const_params import ground, vec5i, mat33, vec3, scalar
 
 @wp.struct
 class AffineBodyStates:
-    A: wp.array(dtype = wp.mat33)
-    p: wp.array(dtype = wp.vec3)
+    A: wp.array(dtype = mat33)
+    p: wp.array(dtype = vec3)
     
-    Ak: wp.array(dtype = wp.mat33)  # used in line search
-    pk: wp.array(dtype = wp.vec3)   # used in line search
+    Ak: wp.array(dtype = mat33)  # used in line search
+    pk: wp.array(dtype = vec3)   # used in line search
     
-    Adot: wp.array(dtype = wp.mat33)
-    pdot: wp.array(dtype = wp.vec3)
+    Adot: wp.array(dtype = mat33)
+    pdot: wp.array(dtype = vec3)
 
-    A0: wp.array(dtype = wp.mat33)
-    p0: wp.array(dtype = wp.vec3)
+    A0: wp.array(dtype = mat33)
+    p0: wp.array(dtype = vec3)
 
-    mass: wp.array(dtype = float)
-    I0: wp.array(dtype = float)
+    mass: wp.array(dtype = scalar)
+    I0: wp.array(dtype = scalar)
 
 def affine_body_states_empty(n_bodies):
     
     states = AffineBodyStates()
 
-    states.A = wp.zeros(n_bodies, dtype = wp.mat33)
-    states.p = wp.zeros(n_bodies, dtype = wp.vec3)
+    states.A = wp.zeros(n_bodies, dtype = mat33)
+    states.p = wp.zeros(n_bodies, dtype = vec3)
 
     states.Ak = wp.zeros_like(states.A)
     states.pk = wp.zeros_like(states.p)
@@ -42,11 +42,11 @@ def affine_body_states_empty(n_bodies):
 @wp.struct
 class WarpMesh:
     id: int
-    x0: wp.array(dtype = wp.vec3)       # rest shape
-    x: wp.array(dtype = wp.vec3)        # current position
-    xk: wp.array(dtype = wp.vec3)
+    x0: wp.array(dtype = vec3)       # rest shape
+    x: wp.array(dtype = vec3)        # current position
+    xk: wp.array(dtype = vec3)
                 # line search t1 position
-    x_view: wp.array(dtype = wp.vec3)   # view position
+    x_view: wp.array(dtype = vec3)   # view position
     
     triangles: wp.array2d(dtype = int)  # triangle indices
     edges: wp.array2d(dtype = int)      # edge indices
@@ -58,12 +58,12 @@ class AffineMesh(KineticMesh):
     @classmethod
     def states_default(cls):
         return {
-            "A": np.identity(3, dtype = float),
-            "p": np.zeros(3, dtype = float),
-            "Adot": np.zeros((3,3), dtype = float),
-            "pdot": np.zeros(3, dtype = float),
+            "A": np.identity(3, dtype = scalar),
+            "p": np.zeros(3, dtype = scalar),
+            "Adot": np.zeros((3,3), dtype = scalar),
+            "pdot": np.zeros(3, dtype = scalar),
             "mass": 1.0,
-            "I0": np.identity(3, dtype = float) / 12
+            "I0": np.identity(3, dtype = scalar) / 12
         }
     
     def __init__(self, obj_json):
@@ -84,7 +84,7 @@ class AffineMesh(KineticMesh):
     def warp_affine_body(self, id) -> WarpMesh:
         ab = WarpMesh()
         ab.id = id
-        ab.x0 = wp.zeros(self.V.shape[0], dtype = wp.vec3)
+        ab.x0 = wp.zeros(self.V.shape[0], dtype = vec3)
         ab.x = wp.zeros_like(ab.x0)
         ab.xk = wp.zeros_like(ab.x0)
         ab.x_view = wp.zeros_like(ab.x0)
@@ -99,7 +99,7 @@ class AffineMesh(KineticMesh):
 
 
 @wp.func
-def vg_distance(v: wp.vec3) -> float:
+def vg_distance(v: vec3) -> scalar:
     return v[1] - ground
 
 @wp.func

@@ -11,7 +11,7 @@ import abdtk
 
 ipctk_ref = False
 @wp.kernel
-def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
+def _mask_valid(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = scalar)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
 
@@ -29,14 +29,14 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     if not pt:
         return highlight 
 
-    Q = wp.zeros((npt, 5 * 3), dtype = wp.vec3)
-    Lam = wp.zeros((npt, 5), dtype = float)
+    Q = wp.zeros((npt, 5 * 3), dtype = vec3)
+    Lam = wp.zeros((npt, 5), dtype = scalar)
     dcdx = wp.zeros((npt, ), dtype = mat34)
     Jt = wp.zeros((npt, ), dtype = mat34)
-    Jp = wp.zeros((npt, ), dtype = wp.vec4) 
+    Jp = wp.zeros((npt, ), dtype = vec4) 
     valid = wp.zeros((npt, ), dtype = wp.bool)
-    d2 = wp.zeros((npt,), dtype = float)
-    x = wp.zeros((npt, 4), dtype = wp.vec3)
+    d2 = wp.zeros((npt,), dtype = scalar)
+    x = wp.zeros((npt, 4), dtype = vec3)
 
     wp.launch(_mask_valid, dim = (npt, ), inputs = [pt_list, bodies, valid, d2])
     wp.launch(_Q_lambda_pt, dim = (npt, ), inputs = [pt_list, bodies, Q, Lam])
@@ -59,7 +59,7 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     Hijnp = np.zeros((npt, 12, 12))
     ptnp = pt_list.numpy()
     ijnp = np.delete(ptnp, 2, 1)
-    d2min = np.min(d2np) if len(d2np) else 1.0
+    d2min = np.min(d2np) if len(d2np) else scalar(1.0)
     # if npt > 0 and d2min < d2hat:
     #     # print(f"colision detected, list = {ptnp}")
     #     print(f"colision detected, d2 min = {d2min}")
@@ -111,7 +111,7 @@ def ipc_term_pt(nij, pt_list, bodies, grad, blocks):
     for i in range(npt):
         # if validnp[i]:
         # if True:
-        if d2np[i] < d2hat and validnp[i]:
+        if d2np[i] < float(d2hat) and validnp[i]:
         # if d2np[i] < d2hat:
             with wp.ScopedTimer(f"pt contact {i}"):
                 I = ptnp[i, 1]
@@ -210,7 +210,7 @@ def JTg(Jp, Jt, g12):
 
 
 @wp.kernel
-def get_vertices(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+def get_vertices(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
     x[i, 0] = p
@@ -224,7 +224,7 @@ def extract_Q(q):
     
 def QLQinv(Q, lam):
     QTQ = Q.T @ Q
-    diag_inv = np.array([(1.0 / QTQ[i, i]) for i in range(5)])
+    diag_inv = np.array([(scalar(1.0) / QTQ[i, i]) for i in range(5)])
     diag_inv = np.diag(diag_inv)
     Q_inv = diag_inv @ Q.T
     Lam = np.diag(lam)
@@ -246,38 +246,38 @@ def JTH12J(H12, Jp, Jt):
     return Hi, Hj, Hij
     
 @wp.kernel
-def extract_JpJt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), Jp: wp.array(dtype = wp.vec4), Jt: wp.array(dtype = mat34)):
+def extract_JpJt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), Jp: wp.array(dtype = vec4), Jt: wp.array(dtype = mat34)):
     i = wp.tid()
     x0, x1, x2, x3 = fetch_pt_x0(pt_list[i], bodies)
-    Jp[i] = wp.vec4(1.0, x0[0], x0[1], x0[2])
-    Jt[i] = mat34(1.0, x1[0], x1[1], x1[2], 
-               1.0, x2[0], x2[1], x2[2], 
-               1.0, x3[0], x3[1], x3[2])
+    Jp[i] = vec4(scalar(1.0), x0[0], x0[1], x0[2])
+    Jt[i] = mat34(scalar(1.0), x1[0], x1[1], x1[2], 
+               scalar(1.0), x2[0], x2[1], x2[2], 
+               scalar(1.0), x3[0], x3[1], x3[2])
     
 
 @wp.kernel
-def _Q_lambda_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype =Any), q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = float)):
+def _Q_lambda_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype =Any), q: wp.array2d(dtype = vec3), lam: wp.array2d(dtype = scalar)):
     i = wp.tid()
     x0, x1, x2, x3 = fetch_pt(pt_list[i], bodies)
     e0p, e1p, e2p = C_vf(x0, x1, x2, x3)
     lam0, lam1, lam2, lam3 = eig_Hl_tid(e0p, e1p, e2p, q, i)
     l = signed_distance(e0p, e1p, e2p)
 
-    lam0 = wp.max(lam0, 0.0)
-    lam1 = wp.max(lam1, 0.0)
-    lam2 = wp.max(lam2, 0.0)
-    lam3 = wp.max(lam3, 0.0)
+    lam0 = wp.max(lam0, scalar(0.0))
+    lam1 = wp.max(lam1, scalar(0.0))
+    lam2 = wp.max(lam2, scalar(0.0))
+    lam3 = wp.max(lam3, scalar(0.0))
 
     lam[i, 0] = lam0
     lam[i, 1] = lam1
     lam[i, 2] = lam2
     lam[i, 3] = lam3
-    lam[i, 4] = 2.0
+    lam[i, 4] = scalar(2.0)
 
     gl0, gl1, gl2 = gl(l, e2p)
-    q[i, 4 * 3 + 0] = gl0 * 2.0 * l
-    q[i, 4 * 3 + 1] = gl1 * 2.0 * l
-    q[i, 4 * 3 + 2] = gl2 * 2.0 * l
+    q[i, 4 * 3 + 0] = gl0 * scalar(2.0) * l
+    q[i, 4 * 3 + 1] = gl1 * scalar(2.0) * l
+    q[i, 4 * 3 + 2] = gl2 * scalar(2.0) * l
 
 @wp.kernel
 def _dcdx(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), ret: wp.array2d(dtype = mat34)):

@@ -20,7 +20,7 @@ class IPCContactEnergy:
         ee_list = inputs[0]
         pt_list = inputs[1]
         vg_list = inputs[2]
-        E = wp.zeros((1, ), dtype =float)
+        E = wp.zeros((1, ), dtype =scalar)
         inputs.append(E)
         Enp = 0.0
         if ee:
@@ -28,7 +28,7 @@ class IPCContactEnergy:
         if pt:
             wp.launch(ipc_energy_pt, dim = pt_list.shape, inputs = inputs)
             # bodies = inputs[-2]
-            # x = wp.zeros((pt_list.shape[0], 4), dtype = wp.vec3)
+            # x = wp.zeros((pt_list.shape[0], 4), dtype = vec3)
             # npt = pt_list.shape[0]
             # wp.launch(get_vertices, dim = pt_list.shape, inputs = [pt_list, bodies, x])
             # xnp = x.numpy()
@@ -77,18 +77,18 @@ if __name__ == "__main__":
         vg_list = wp.zeros((1,), dtype = wp.vec2i)
         _bodies = []
         a = WarpMesh()
-        a.x = wp.zeros((1, ), dtype = wp.vec3)
-        a.x0 = wp.zeros((1, ), dtype = wp.vec3)
-        a.xk = wp.zeros((1, ), dtype = wp.vec3)
-        a.x_view = wp.zeros((1, ), dtype = wp.vec3)
+        a.x = wp.zeros((1, ), dtype = vec3)
+        a.x0 = wp.zeros((1, ), dtype = vec3)
+        a.xk = wp.zeros((1, ), dtype = vec3)
+        a.x_view = wp.zeros((1, ), dtype = vec3)
         a.triangles = wp.zeros((1, 3), dtype = int)
         a.edges = wp.zeros((1, 2), dtype = int)
 
         _bodies.append(a)
         bodies = wp.array(_bodies, dtype = WarpMesh)
 
-        g = wp.zeros((4, ), dtype = wp.vec3)
-        blocks = wp.zeros((16, ), dtype = wp.mat33)
+        g = wp.zeros((4, ), dtype = vec3)
+        blocks = wp.zeros((16, ), dtype = mat33)
 
         wp.launch(ipc_term_vg, (1, ), inputs = [vg_list, bodies, g, blocks])
         # wp.launch(ipc_term_vg, (1, ), inputs = [vg_list, g, blocks])
@@ -104,10 +104,10 @@ if __name__ == "__main__":
 
         _bodies = []
         a = WarpMesh()
-        a.x = wp.zeros((1, ), dtype = wp.vec3)
-        a.x0 = wp.zeros((1, ), dtype = wp.vec3)
-        a.xk = wp.zeros((1, ), dtype = wp.vec3)
-        a.x_view = wp.zeros((1, ), dtype = wp.vec3)
+        a.x = wp.zeros((1, ), dtype = vec3)
+        a.x0 = wp.zeros((1, ), dtype = vec3)
+        a.xk = wp.zeros((1, ), dtype = vec3)
+        a.x_view = wp.zeros((1, ), dtype = vec3)
         a.triangles = wp.zeros((1, 3), dtype = int)
         a.edges = wp.zeros((1, 2), dtype = int)
         ax = arr[0]
@@ -118,7 +118,7 @@ if __name__ == "__main__":
         _bodies.append(a)
 
         b = WarpMesh()
-        b.x = wp.zeros((3, ), dtype = wp.vec3)
+        b.x = wp.zeros((3, ), dtype = vec3)
         b.x0 = wp.zeros_like(b.x)
         b.xk = wp.zeros_like(b.x)
         b.x_view = wp.zeros_like(b.x)
@@ -136,8 +136,8 @@ if __name__ == "__main__":
 
         bodies = wp.array(_bodies, dtype = WarpMesh)
 
-        g = wp.zeros((8,), dtype = wp.vec3)
-        H = wp.zeros((4 * 16), dtype = wp.mat33)
+        g = wp.zeros((8,), dtype = vec3)
+        H = wp.zeros((4 * 16), dtype = mat33)
         ptnp = np.array([0, 1, 0, 0, 0])
         pt_list.assign(ptnp)
 
@@ -154,10 +154,10 @@ if __name__ == "__main__":
 
         _bodies = []
         a = WarpMesh()
-        a.x = wp.zeros((2, ), dtype = wp.vec3)
-        a.x0 = wp.zeros((2, ), dtype = wp.vec3)
-        a.xk = wp.zeros((2, ), dtype = wp.vec3)
-        a.x_view = wp.zeros((2, ), dtype = wp.vec3)
+        a.x = wp.zeros((2, ), dtype = vec3)
+        a.x0 = wp.zeros((2, ), dtype = vec3)
+        a.xk = wp.zeros((2, ), dtype = vec3)
+        a.x_view = wp.zeros((2, ), dtype = vec3)
         a.triangles = wp.zeros((1, 3), dtype = int)
         a.edges = wp.zeros((1, 2), dtype = int)
         ax = arr[: 2]
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         _bodies.append(a)
 
         b = WarpMesh()
-        b.x = wp.zeros((2, ), dtype = wp.vec3)
+        b.x = wp.zeros((2, ), dtype = vec3)
         b.x0 = wp.zeros_like(b.x)
         b.xk = wp.zeros_like(b.x)
         b.x_view = wp.zeros_like(b.x)
@@ -188,8 +188,8 @@ if __name__ == "__main__":
 
         bodies = wp.array(_bodies, dtype = WarpMesh)
 
-        g = wp.zeros((8,), dtype = wp.vec3)
-        H = wp.zeros((4 * 16), dtype = wp.mat33)
+        g = wp.zeros((8,), dtype = vec3)
+        H = wp.zeros((4 * 16), dtype = mat33)
         eenp = np.array([0, 1, 0, 0, 0])
         ee_list.assign(eenp)
 

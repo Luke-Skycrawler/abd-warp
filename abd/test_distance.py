@@ -15,11 +15,11 @@ from affine_body import WarpMesh
 import igl
 seed = 114514
 @wp.kernel
-def init_positive(x: wp.array2d(dtype = wp.vec3)):
+def init_positive(x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     rng = wp.rand_init(seed)
-    e0 = wp.vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
-    e1 = wp.vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
+    e0 = vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
+    e1 = vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
 
     beta = wp.randf(rng)
     gamma = wp.randf(rng) * (1.0 - beta)
@@ -27,17 +27,17 @@ def init_positive(x: wp.array2d(dtype = wp.vec3)):
     n = wp.cross(e0, e1)
     nd = wp.randf(rng)
 
-    x[i, 1] = wp.vec3(0.0, 0.0, 0.0)
+    x[i, 1] = vec3(0.0, 0.0, 0.0)
     x[i, 2] = e0 + x[i, 1]
     x[i, 3] = e1 + x[i, 1]
     x[i, 0] = n * nd + x[i, 1] + beta * e0 + gamma * e1
 
 @wp.kernel
-def init_negative(x: wp.array2d(dtype = wp.vec3)):
+def init_negative(x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     rng = wp.rand_init(seed)
-    e0 = wp.vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
-    e1 = wp.vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
+    e0 = vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
+    e1 = vec3(wp.randf(rng), wp.randf(rng), wp.randf(rng))
 
     _beta = wp.randf(rng)
     _gamma = wp.randf(rng) * (1.0 - _beta)
@@ -48,14 +48,14 @@ def init_negative(x: wp.array2d(dtype = wp.vec3)):
     n = wp.cross(e0, e1)
     nd = wp.randf(rng)
 
-    x[i, 1] = wp.vec3(0.0, 0.0, 0.0)
+    x[i, 1] = vec3(0.0, 0.0, 0.0)
     x[i, 2] = e0 + x[i, 1]
     x[i, 3] = e1 + x[i, 1]
     x[i, 0] = n * nd + x[i, 1] + beta * e0 + gamma * e1
 
 
 @wp.kernel
-def test_artificial_dataset(x: wp.array2d(dtype = wp.vec3), ret: wp.array(dtype = wp.bool)):
+def test_artificial_dataset(x: wp.array2d(dtype = vec3), ret: wp.array(dtype = wp.bool)):
     i = wp.tid()
     x0 = x[i, 0]
     x1 = x[i, 1]
@@ -70,7 +70,7 @@ def test_triangle_inside():
     n_tests = 1000
     expect = False
 
-    x = wp.zeros((n_tests, 4), dtype = wp.vec3) 
+    x = wp.zeros((n_tests, 4), dtype = vec3) 
     ret = wp.zeros((n_tests,), dtype = wp.bool)
 
     ker = init_positive if expect else init_negative
@@ -107,7 +107,7 @@ def test_continous():
     ij_list = wp.from_numpy(np.array([[0, 1]]), dtype = wp.vec2i, shape = (1,))
     bb = BvhBuilder()
 
-    # Vwp = wp.zeros(V0.shape[0], dtype = wp.vec3)
+    # Vwp = wp.zeros(V0.shape[0], dtype = vec3)
     # Vwp.assign(V0)
     Fwp = wp.zeros(F.shape, dtype = int)
     Fwp.assign(F)
@@ -118,10 +118,10 @@ def test_continous():
 
     _bodies = []
     a = WarpMesh()
-    a.x = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
-    a.x0 = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
-    a.xk = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
-    a.x_view = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
+    a.x = wp.zeros((V0.shape[0], ), dtype = vec3)
+    a.x0 = wp.zeros((V0.shape[0], ), dtype = vec3)
+    a.xk = wp.zeros((V0.shape[0], ), dtype = vec3)
+    a.x_view = wp.zeros((V0.shape[0], ), dtype = vec3)
     a.triangles = wp.zeros(F.shape, dtype = int)
     a.edges = wp.zeros(E.shape, dtype = int)
     
@@ -135,7 +135,7 @@ def test_continous():
     _bodies.append(a)
 
     b = WarpMesh()
-    b.x = wp.zeros((V0.shape[0], ), dtype = wp.vec3)
+    b.x = wp.zeros((V0.shape[0], ), dtype = vec3)
     b.x0 = wp.zeros_like(b.x)
     b.xk = wp.zeros_like(b.x)
     b.x_view = wp.zeros_like(b.x)
@@ -154,8 +154,8 @@ def test_continous():
 
     bodies = wp.array(_bodies, dtype = WarpMesh)
 
-    g = wp.zeros((8,), dtype = wp.vec3)
-    H = wp.zeros((4 * 16), dtype = wp.mat33)
+    g = wp.zeros((8,), dtype = vec3)
+    H = wp.zeros((4 * 16), dtype = mat33)
 
     # ipc_term_pt(1, pt_list, bodies, g, H)
     print("viewer launched")
@@ -227,7 +227,7 @@ def test_continous():
         nprim = prim_list.shape[0]
 
         valid = wp.zeros((nprim, ), dtype = wp.bool)
-        d2 = wp.zeros((nprim, ), dtype = float)
+        d2 = wp.zeros((nprim, ), dtype = scalar)
         wp.launch(_mask_valid, dim = (nprim, ), inputs = [prim_list, bodies, valid, d2])
 
         primnp = prim_list.numpy()

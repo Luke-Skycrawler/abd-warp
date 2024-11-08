@@ -11,7 +11,7 @@ import ipctk
 ipctk_ref = False
 
 @wp.kernel
-def _mask_valid(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = float)):
+def _mask_valid(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), valid: wp.array(dtype = wp.bool), d: wp.array(dtype = scalar)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_ee(ee_list[i], bodies)
 
@@ -23,28 +23,28 @@ def _mask_valid(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any),
     d[i] = wp.length_sq(e2p)
 
 @wp.kernel
-def _Q_lambda_ee(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype =Any), q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = float)):
+def _Q_lambda_ee(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype =Any), q: wp.array2d(dtype = vec3), lam: wp.array2d(dtype = scalar)):
     i = wp.tid()
     x0, x1, x2, x3 = fetch_ee(pt_list[i], bodies)
     e0p, e1p, e2p = C_ee(x0, x1, x2, x3)
     lam0, lam1, lam2, lam3 = eig_Hl_tid(e0p, e1p, e2p, q, i)
     l = signed_distance(e0p, e1p, e2p)
 
-    # lam0 = wp.max(lam0, 0.0)
-    # lam1 = wp.max(lam1, 0.0)
-    # lam2 = wp.max(lam2, 0.0)
-    # lam3 = wp.max(lam3, 0.0)
+    # lam0 = wp.max(lam0, scalar(0.0))
+    # lam1 = wp.max(lam1, scalar(0.0))
+    # lam2 = wp.max(lam2, scalar(0.0))
+    # lam3 = wp.max(lam3, scalar(0.0))
 
     lam[i, 0] = lam0
     lam[i, 1] = lam1
     lam[i, 2] = lam2
     lam[i, 3] = lam3
-    lam[i, 4] = 2.0
+    lam[i, 4] = scalar(2.0)
 
     gl0, gl1, gl2 = gl(l, e2p)
-    q[i, 4 * 3 + 0] = gl0 * 2.0 * l
-    q[i, 4 * 3 + 1] = gl1 * 2.0 * l
-    q[i, 4 * 3 + 2] = gl2 * 2.0 * l
+    q[i, 4 * 3 + 0] = gl0 * scalar(2.0) * l
+    q[i, 4 * 3 + 1] = gl1 * scalar(2.0) * l
+    q[i, 4 * 3 + 2] = gl2 * scalar(2.0) * l
 
 
 def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
@@ -55,14 +55,14 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
     if not ee:
         return highlight
 
-    Q = wp.zeros((nee, 5 * 3), dtype = wp.vec3)
-    Lam = wp.zeros((nee, 5), dtype = float)
+    Q = wp.zeros((nee, 5 * 3), dtype = vec3)
+    Lam = wp.zeros((nee, 5), dtype = scalar)
     dcdx = wp.zeros((nee, ), dtype = mat34)
     Jei = wp.zeros((nee, ), dtype = mat24)
     Jej = wp.zeros((nee, ), dtype = mat24)
     valid = wp.zeros((nee, ), dtype = wp.bool)
-    d2 = wp.zeros((nee,), dtype = float)    
-    x = wp.zeros((nee, 4), dtype = wp.vec3)
+    d2 = wp.zeros((nee,), dtype = scalar)    
+    x = wp.zeros((nee, 4), dtype = vec3)
 
     wp.launch(_mask_valid, dim = (nee, ), inputs = [ee_list, bodies, valid, d2])
 
@@ -92,7 +92,7 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
     
     # print(f"d2 min= {np.min(d2np)}, nee = {nee}, d2hat = {d2hat}")
     for i in range(nee):
-        if d2np[i] < d2hat and validnp[i]:
+        if d2np[i] < float(d2hat) and validnp[i]:
             with wp.ScopedTimer(f"ee contact {i}"):
                 J = eenp[i, 1]
                 highlight[J] = True
@@ -145,7 +145,7 @@ def ipc_term_ee(nij, ee_list, bodies, grad, blocks):
 
 def QLQinv(Q, lam):
     QTQ = Q.T @ Q
-    diag_inv = np.array([(1.0 / QTQ[i, i]) for i in range(5)])
+    diag_inv = np.array([(scalar(1.0) / QTQ[i, i]) for i in range(5)])
     diag_inv = np.diag(diag_inv)
     Q_inv = diag_inv @ Q.T
     Lam = np.diag(lam)
@@ -189,7 +189,7 @@ def JTH12J(H12, Jei, Jej):
 
 
 @wp.kernel
-def get_vertices(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+def get_vertices(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     ei0, ei1, ej0, ej1 = fetch_ee(ee_list[i], bodies)
     x[i, 0] = ei0
@@ -202,12 +202,12 @@ def extract_JeiJej(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = An
     i = wp.tid()
     x0, x1, x2, x3 = fetch_ee_x0(ee_list[i], bodies)
     Jei[i] = mat24(
-        1.0, x0[0], x0[1], x0[2],
-        1.0, x1[0], x1[1], x1[2]
+        scalar(1.0), x0[0], x0[1], x0[2],
+        scalar(1.0), x1[0], x1[1], x1[2]
     )
     Jej[i] = mat24(
-        1.0, x2[0], x2[1], x2[2], 
-        1.0, x3[0], x3[1], x3[2]
+        scalar(1.0), x2[0], x2[1], x2[2], 
+        scalar(1.0), x3[0], x3[1], x3[2]
     )
 
 @wp.kernel

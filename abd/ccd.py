@@ -7,7 +7,7 @@ from typing import Any
 import abdtk
 
 @wp.kernel
-def toi_vg(bodies: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), toi: wp.array(dtype = float)):
+def toi_vg(bodies: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), toi: wp.array(dtype = scalar)):
 
     tid = wp.tid()
     xt0 = fetch_vertex(vg_list[tid], bodies)
@@ -18,7 +18,7 @@ def toi_vg(bodies: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), t
         wp.atomic_min(toi, 0, t)
 
 @wp.kernel
-def toi_pt(bodies: wp.array(dtype = Any), pt_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
+def toi_pt(bodies: wp.array(dtype = Any), pt_list: wp.array(dtype = vec5i), toi: wp.array(dtype = scalar)):
 
     tid = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[tid], bodies)
@@ -29,7 +29,7 @@ def toi_pt(bodies: wp.array(dtype = Any), pt_list: wp.array(dtype = vec5i), toi:
         wp.atomic_min(toi, 0, t)
 
 @wp.kernel
-def toi_ee(bodies: wp.array(dtype = Any), ee_list: wp.array(dtype = vec5i), toi: wp.array(dtype = float)):
+def toi_ee(bodies: wp.array(dtype = Any), ee_list: wp.array(dtype = vec5i), toi: wp.array(dtype = scalar)):
 
     tid = wp.tid()
     ea0, ea1, eb0, eb1 = fetch_ee(ee_list[tid], bodies)
@@ -42,31 +42,31 @@ def toi_ee(bodies: wp.array(dtype = Any), ee_list: wp.array(dtype = vec5i), toi:
 
         
 @wp.func
-def verify_root_pt(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
+def verify_root_pt(x0: vec3, x1: vec3, x2: vec3, x3: vec3):
     beta, gamma = beta_gamma_pt(x0, x1, x2, x3)
-    cond = 0.0 < beta < 1.0 and 0.0 < gamma < 1.0 and 0.0 < beta + gamma < 1.0
+    cond = scalar(0.0) < beta < scalar(1.0) and scalar(0.0) < gamma < scalar(1.0) and scalar(0.0) < beta + gamma < scalar(1.0)
     return cond
 
 @wp.func
-def verify_root_ee(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3):
+def verify_root_ee(x0: vec3, x1: vec3, x2: vec3, x3: vec3):
     beta, gamma = beta_gamma_ee(x0, x1, x2, x3)
-    cond = 0.0 < beta < 1.0 and 0.0 < -gamma < 1.0
+    cond = scalar(0.0) < beta < scalar(1.0) and scalar(0.0) < -gamma < scalar(1.0)
     return cond
 
 @wp.func
 def build_and_solve_4_points_coplanar(
-    p0_t0: wp.vec3, p1_t0: wp.vec3, p2_t0: wp.vec3, p3_t0: wp.vec3,
-    p0_t1: wp.vec3, p1_t1: wp.vec3, p2_t1: wp.vec3, p3_t1: wp.vec3
+    p0_t0: vec3, p1_t0: vec3, p2_t0: vec3, p3_t0: vec3,
+    p0_t1: vec3, p1_t1: vec3, p2_t1: vec3, p3_t1: vec3
 ):
-    a1 = wp.mat33(p1_t1, p2_t1, p3_t1)
-    a2 = wp.mat33(p0_t1, p2_t1, p3_t1)
-    a3 = wp.mat33(p0_t1, p1_t1, p3_t1)
-    a4 = wp.mat33(p0_t1, p1_t1, p2_t1)
+    a1 = mat33(p1_t1, p2_t1, p3_t1)
+    a2 = mat33(p0_t1, p2_t1, p3_t1)
+    a3 = mat33(p0_t1, p1_t1, p3_t1)
+    a4 = mat33(p0_t1, p1_t1, p2_t1)
 
-    b1 = wp.mat33(p1_t0, p2_t0, p3_t0)
-    b2 = wp.mat33(p0_t0, p2_t0, p3_t0)
-    b3 = wp.mat33(p0_t0, p1_t0, p3_t0)
-    b4 = wp.mat33(p0_t0, p1_t0, p2_t0)
+    b1 = mat33(p1_t0, p2_t0, p3_t0)
+    b2 = mat33(p0_t0, p2_t0, p3_t0)
+    b3 = mat33(p0_t0, p1_t0, p3_t0)
+    b4 = mat33(p0_t0, p1_t0, p2_t0)
 
     a1 -= b1
     a2 -= b2
@@ -80,9 +80,9 @@ def build_and_solve_4_points_coplanar(
 
 
 @wp.func
-def det_polynomial(a: wp.mat33, b: wp.mat33) -> wp.vec4:
-    pos_polynomial = wp.vec4(0.0, 0.0, 0.0, 0.0)
-    neg_polynomial = wp.vec4(0.0, 0.0, 0.0, 0.0)
+def det_polynomial(a: mat33, b: mat33) -> vec4:
+    pos_polynomial = vec4(0.0, 0.0, 0.0, 0.0)
+    neg_polynomial = vec4(0.0, 0.0, 0.0, 0.0)
 
     c11c22c33 = mat23(
         a[0, 0], a[1, 1], a[2, 2],
@@ -120,8 +120,8 @@ def det_polynomial(a: wp.mat33, b: wp.mat33) -> wp.vec4:
 
 
 @wp.func
-def cubic_binomial(a: wp.vec3, b:wp.vec3):
-    return wp.vec4(
+def cubic_binomial(a: vec3, b:vec3):
+    return vec4(
         b[0] * b[1] * b[2],
         a[0] * b[1] * b[2] + b[0] * b[1] * a[2] + b[0] * a[1] * b[2],
         a[0] * a[1] * b[2] + a[0] * b[1] * a[2] + b[0] * a[1] * a[2],
@@ -132,13 +132,13 @@ def cubic_binomial(a: wp.vec3, b:wp.vec3):
 
 @wp.func
 def pt_collision_time(
-    p0_t0: wp.vec3, p1_t0: wp.vec3, p2_t0: wp.vec3, p3_t0: wp.vec3,
+    p0_t0: vec3, p1_t0: vec3, p2_t0: vec3, p3_t0: vec3,
 
-    p0_t1: wp.vec3, p1_t1: wp.vec3, p2_t1: wp.vec3, p3_t1: wp.vec3
+    p0_t1: vec3, p1_t1: vec3, p2_t1: vec3, p3_t1: vec3
 ):
     n_roots, roots = build_and_solve_4_points_coplanar(p0_t0, p1_t0, p2_t0, p3_t0, p0_t1, p1_t1, p2_t1, p3_t1)
 
-    root = float(1.0)
+    root = scalar(1.0)
     true_root = bool(False)
     for i in range(n_roots):
         root = roots[i]
@@ -157,18 +157,18 @@ def pt_collision_time(
 
 @wp.func
 def ee_collision_time(
-    ei0_t0: wp.vec3,  
-    ei1_t0: wp.vec3, 
-    ej0_t0: wp.vec3, 
-    ej1_t0: wp.vec3, 
-    ei0_t1: wp.vec3,
-    ei1_t1: wp.vec3,
-    ej0_t1: wp.vec3,
-    ej1_t1: wp.vec3
+    ei0_t0: vec3,  
+    ei1_t0: vec3, 
+    ej0_t0: vec3, 
+    ej1_t0: vec3, 
+    ei0_t1: vec3,
+    ei1_t1: vec3,
+    ej0_t1: vec3,
+    ej1_t1: vec3
 ):
     n_roots, roots = build_and_solve_4_points_coplanar(ei0_t0, ei1_t0, ej0_t0, ej1_t0, ei0_t1, ei1_t1, ej0_t1, ej1_t1)
 
-    root = float(1.0)
+    root = scalar(1.0)
     true_root = bool(False)
     for i in range(n_roots):
         root = roots[i]
@@ -186,8 +186,8 @@ def ee_collision_time(
     return root
         
 @wp.func
-def vg_collison_time(pt0: wp.vec3, pt1: wp.vec3):
-    toi = float(1.0)
+def vg_collison_time(pt0: vec3, pt1: vec3):
+    toi = scalar(1.0)
     d1 = vg_distance(pt1)
     if d1 < 0:
         d0 = vg_distance(pt0)
@@ -195,7 +195,7 @@ def vg_collison_time(pt0: wp.vec3, pt1: wp.vec3):
     return toi
 
 @wp.kernel
-def get_vertices_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+def get_vertices_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt(pt_list[i], bodies)
     x[i, 0] = p
@@ -204,7 +204,7 @@ def get_vertices_pt(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = A
     x[i, 3] = t2
 
 @wp.kernel
-def get_vertices_pt_xk(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+def get_vertices_pt_xk(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt_xk(pt_list[i], bodies)
     x[i, 0] = p
@@ -213,7 +213,7 @@ def get_vertices_pt_xk(pt_list: wp.array(dtype = vec5i), bodies: wp.array(dtype 
     x[i, 3] = t2
 
 @wp.kernel
-def get_vertices_ee_xk(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+def get_vertices_ee_xk(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_ee_xk(ee_list[i], bodies)
     x[i, 0] = p
@@ -222,7 +222,7 @@ def get_vertices_ee_xk(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype 
     x[i, 3] = t2
 
 @wp.kernel
-def get_vertices_ee(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = wp.vec3)):
+def get_vertices_ee(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = Any), x: wp.array2d(dtype = vec3)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_ee(ee_list[i], bodies)
     x[i, 0] = p
@@ -234,7 +234,7 @@ def get_vertices_ee(ee_list: wp.array(dtype = vec5i), bodies: wp.array(dtype = A
 
 def toi_pt_abdtk(bodies, pt_list):
     npt = pt_list.shape[0]
-    x_t0 = wp.zeros((pt_list.shape[0], 4), dtype = wp.vec3)
+    x_t0 = wp.zeros((pt_list.shape[0], 4), dtype = vec3)
     x_t1 = wp.zeros_like(x_t0)
     wp.launch(get_vertices_pt, dim = pt_list.shape, inputs = [pt_list, bodies, x_t0])
 
@@ -255,7 +255,7 @@ def toi_pt_abdtk(bodies, pt_list):
 
 def toi_ee_abdtk(bodies, ee_list):  
     nee = ee_list.shape[0]
-    x_t0 = wp.zeros((ee_list.shape[0], 4), dtype = wp.vec3)
+    x_t0 = wp.zeros((ee_list.shape[0], 4), dtype = vec3)
     x_t1 = wp.zeros_like(x_t0)
     wp.launch(get_vertices_ee, dim = ee_list.shape, inputs = [ee_list, bodies, x_t0])
 

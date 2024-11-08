@@ -62,12 +62,12 @@ def cull_vg(lowers, _bvh_list, bodies):
 
         
 @wp.kernel
-def intersection_ground(lowers: wp.array(dtype = wp.vec3), bvh_list: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), prim_meta: Any, dhat: float):
+def intersection_ground(lowers: wp.array(dtype = vec3), bvh_list: wp.array(dtype = Any), vg_list: wp.array(dtype = wp.vec2i), prim_meta: Any, dhat: scalar):
     i = wp.tid()
-    if lowers[i][1] < 0.5 * dhat + ground:
+    if lowers[i][1] < scalar(0.5) * dhat + ground:
         bound = 1e3
-        u = wp.vec3(bound, ground, bound)
-        l = wp.vec3(-bound, -bound, -bound)
+        u = wp.vec3f(bound, wp.float32(ground), bound)
+        l = wp.vec3f(-bound, -bound, -bound)
         id = bvh_list[i].id
         query = wp.bvh_query_aabb(id, l, u)
         pid = int(0)

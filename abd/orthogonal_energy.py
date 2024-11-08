@@ -6,7 +6,7 @@ from sparse import BSR, bsr_empty
 from warp.sparse import bsr_set_from_triplets, bsr_zeros
 class InertialEnergy:
     def __init__(self):
-        self.e = wp.zeros(1, dtype = float)
+        self.e = wp.zeros(1, dtype = scalar)
 
     def energy(self, states):
         e = self.e
@@ -22,17 +22,17 @@ class InertialEnergy:
         wp.launch(bsr_hessian_inertia, states.A.shape, inputs = [blocks, states])
 
 @wp.kernel
-def energy_inertia(states: AffineBodyStates, e: wp.array(dtype = float)):
+def energy_inertia(states: AffineBodyStates, e: wp.array(dtype = scalar)):
     i = wp.tid()
     A_tilde = tildeA(states.A0[i], states.Adot[i])
     p_tilde = tildep(states.p0[i], states.pdot[i])
     
     dqTMdq = norm_M(states.Ak[i], states.pk[i], A_tilde, p_tilde)
-    de = energy_ortho(states.Ak[i]) * dt * dt + 0.5 * dqTMdq
+    de = energy_ortho(states.Ak[i]) * dt * dt + scalar(0.5) * dqTMdq
     wp.atomic_add(e, 0, de)
 
 @wp.func
-def norm_M(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3) -> float:
+def norm_M(A: mat33, p: vec3, A_tilde: mat33, p_tilde: vec3) -> scalar:
     dq0 = p - p_tilde
     dq1 = A[0] - A_tilde[0]
     dq2 = A[1] - A_tilde[1]
@@ -42,38 +42,38 @@ def norm_M(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3) -> floa
 
 
 @wp.func
-def energy_ortho(A: wp.mat33) -> float:
-    e = float(0.0)
+def energy_ortho(A: mat33) -> scalar:
+    e = scalar(0.0)
     for i in range(3):
         for j in range(3):
-            term = wp.dot(A[i], A[j]) - wp.select(i == j, 0.0, 1.0)
+            term = wp.dot(A[i], A[j]) - scalar(wp.select(i == j, 0.0, 1.0))
             e += term * term
     return e * stiffness
             
             
 
 @wp.func
-def grad_ortho(i: int, A: wp.mat33) -> wp.vec3:
+def grad_ortho(i: int, A: mat33) -> vec3:
     grad = -A[i]
     for j in range(3):
         grad += wp.dot(A[i], A[j]) * A[j]
 
-    return grad * 4.0 * stiffness
+    return grad * scalar(4.0) * stiffness
 
 @wp.func
-def hessian_ortho(i: int, j: int, A: wp.mat33) -> wp.mat33:
-    hess = wp.mat33(0.0)
+def hessian_ortho(i: int, j: int, A: mat33) -> mat33:
+    hess = mat33(scalar(0.0))
     if i == j:
         qiqiT = wp.outer(A[i], A[i]) 
-        qiTqi = wp.dot(A[i], A[i]) - 1.0
-        term2 = wp.diag(wp.vec3(qiTqi))
+        qiTqi = wp.dot(A[i], A[i]) - scalar(1.0)
+        term2 = wp.diag(vec3(qiTqi))
 
         for k in range(3):
             hess += wp.outer(A[k], A[k])
         hess += qiqiT + term2
     else:
-        hess = wp.outer(A[j], A[i]) + wp.diag(wp.vec3(wp.dot(A[j], A[i])))
-    return hess * 4.0 * stiffness
+        hess = wp.outer(A[j], A[i]) + wp.diag(vec3(wp.dot(A[j], A[i])))
+    return hess * scalar(4.0) * stiffness
 
 @wp.func
 def offset(i: int, j: int, bsr: BSR) -> int:
@@ -82,14 +82,14 @@ def offset(i: int, j: int, bsr: BSR) -> int:
     return i * 16
 
 @wp.kernel
-def bsr_hessian_inertia(blocks: wp.array(dtype = wp.mat33), states: AffineBodyStates):
+def bsr_hessian_inertia(blocks: wp.array(dtype = mat33), states: AffineBodyStates):
     i = wp.tid()
     # os = offset(i, i, bsr)
     os = i * 16
     for ii in range(4):
         for jj in range(4):
-            m = wp.select(ii == jj, 0.0, wp.select(ii == 0, I0, mass))
-            I = wp.vec3(m)
+            m = wp.select(ii == jj, scalar(0.0), wp.select(ii == 0, I0, mass))
+            I = vec3(m)
             dh =wp.diag(I)
             if ii > 0 and jj > 0:
                 dh += hessian_ortho(ii - 1, jj - 1, states.A[i]) * dt * dt
@@ -97,7 +97,7 @@ def bsr_hessian_inertia(blocks: wp.array(dtype = wp.mat33), states: AffineBodySt
 
 
 @wp.kernel
-def flattened_gradient_inertia(g: wp.array(dtype = wp.vec3), states: AffineBodyStates):
+def flattened_gradient_inertia(g: wp.array(dtype = vec3), states: AffineBodyStates):
     i = wp.tid()
     for ii in range(1, 4):
         g[ii + i * 4] = dt * dt * grad_ortho(ii - 1, states.A[i])
@@ -113,13 +113,13 @@ def flattened_gradient_inertia(g: wp.array(dtype = wp.vec3), states: AffineBodyS
 
 @wp.kernel
 def _init(states: AffineBodyStates):
-    # states.Adot[0] = wp.skew(wp.vec3(1.0, 0.0, 0.0))
-    states.Adot[0] = wp.mat33(0.0)
-    states.A[0] = wp.diag(wp.vec3(1.0))
-    states.A0[0] = wp.diag(wp.vec3(1.0))
+    # states.Adot[0] = wp.skew(vec3(1.0, 0.0, 0.0))
+    states.Adot[0] = mat33(scalar(0.0))
+    states.A[0] = wp.diag(vec3(scalar(1.0)))
+    states.A0[0] = wp.diag(vec3(scalar(1.0)))
 
 @wp.func
-def Mdq(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3):
+def Mdq(A: mat33, p: vec3, A_tilde: mat33, p_tilde: vec3):
     q0 = p - p_tilde
     q1 = A[0] - A_tilde[0]
     q2 = A[1] - A_tilde[1]
@@ -127,12 +127,12 @@ def Mdq(A: wp.mat33, p: wp.vec3, A_tilde: wp.mat33, p_tilde: wp.vec3):
     return q0 * mass, q1 * I0, q2 * I0, q3 * I0
 
 @wp.func
-def tildeA(A0: wp.mat33, Adot: wp.mat33) -> wp.mat33:
+def tildeA(A0: mat33, Adot: mat33) -> mat33:
     return A0 + dt * Adot
 
 @wp.func
-def tildep(p0: wp.vec3, pdot: wp.vec3) -> wp.vec3:
-    return p0 + dt * pdot + dt * dt * wp.vec3(0.0, gravity, 0.0)
+def tildep(p0: vec3, pdot: vec3) -> vec3:
+    return p0 + dt * pdot + dt * dt * vec3(scalar(0.0), gravity, scalar(0.0))
 
 @wp.kernel
 def _set_triplets(n_bodies: int, n_ij: int, ij_list: wp.array(dtype = wp.vec2i), rows: wp.array(dtype = int), cols: wp.array(dtype = int)):
@@ -168,14 +168,14 @@ def _set_triplets(n_bodies: int, n_ij: int, ij_list: wp.array(dtype = wp.vec2i),
 
 
 @wp.kernel
-def _update_q(states: AffineBodyStates, dq: wp.array(dtype = wp.vec3)):
+def _update_q(states: AffineBodyStates, dq: wp.array(dtype = vec3)):
     i = wp.tid()
     states.p[i] = states.p[i] - dq[i * 4 + 0]
     q1 = states.A[i][0] - dq[i * 4 + 1]
     q2 = states.A[i][1] - dq[i * 4 + 2]
     q3 = states.A[i][2] - dq[i * 4 + 3]
-    states.A[i] = wp.transpose(wp.mat33(q1, q2, q3))
-    # states.A[i] = wp.mat33(q1, q2, q3)
+    states.A[i] = wp.transpose(mat33(q1, q2, q3))
+    # states.A[i] = mat33(q1, q2, q3)
 
 @wp.kernel
 def _update_q0qdot(states: AffineBodyStates):
@@ -191,17 +191,17 @@ if __name__ == "__main__":
     wp.init()
     # bsr = bsr_empty(1) 
     states = affine_body_states_empty(1)
-    # A = wp.zeros(1, dtype = wp.mat33)
-    g = wp.zeros(4, dtype = wp.vec3)
+    # A = wp.zeros(1, dtype = mat33)
+    g = wp.zeros(4, dtype = vec3)
     dq = wp.zeros_like(g)
     wp.launch(_init, 1, inputs = [states])
     inertia = InertialEnergy()
 
 
-    hess = bsr_zeros(4, 4, wp.mat33)
+    hess = bsr_zeros(4, 4, mat33)
     rows = wp.zeros(16, dtype = int)
     cols = wp.zeros(16, dtype = int)
-    values = wp.zeros(16, dtype = wp.mat33)
+    values = wp.zeros(16, dtype = mat33)
 
     for frame in range(10):
         

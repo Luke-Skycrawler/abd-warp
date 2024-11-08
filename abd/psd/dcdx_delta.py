@@ -1,8 +1,9 @@
 import warp as wp
 from psd.vf import dalpha_dx, dbeta_dx, dgamma_dx
+from const_params import scalar, vec3, mat33
 
 @wp.kernel
-def dcdx_delta_kernel(q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = float), x: wp.array(dtype = wp.vec3), t: wp.array2d(dtype = float), ret: wp.array2d(dtype = wp.mat33), a: wp.array2d(dtype = wp.vec3)):
+def dcdx_delta_kernel(q: wp.array2d(dtype = vec3), lam: wp.array2d(dtype = scalar), x: wp.array(dtype = vec3), t: wp.array2d(dtype = scalar), ret: wp.array2d(dtype = mat33), a: wp.array2d(dtype = vec3)):
     x0 = x[0]
     x1 = x[1]
     x2 = x[2]
@@ -15,7 +16,7 @@ def dcdx_delta_kernel(q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = fl
     dbdx0, dbdx1, dbdx2, dbdx3 = dbeta_dx(x0, x1, x2, x3)
     dgdx0, dgdx1, dgdx2, dgdx3 = dgamma_dx(x0, x1, x2, x3)
 
-    a[0, 0] = wp.vec3(0.0)
+    a[0, 0] = vec3(0.0)
     a[0, 1] = dadx1
     a[0, 2] = dadx2
     a[0, 3] = dadx3
@@ -41,9 +42,9 @@ def dcdx_delta_kernel(q: wp.array2d(dtype = wp.vec3), lam: wp.array2d(dtype = fl
         t[1, ii] = wp.dot(-e0, q[ii, 2])
         t[2, ii] = wp.dot(-e1, q[ii, 2])
 
-    sum0 = float(0.0)
-    sum1 = float(0.0)
-    sum2 = float(0.0)
+    sum0 = scalar(0.0)
+    sum1 = scalar(0.0)
+    sum2 = scalar(0.0)
     for ii in range(5):
         theta = lam[0, ii] / (wp.length_sq(q[ii, 0]) + wp.length_sq(q[ii, 1]) + wp.length_sq(q[ii, 2]))
         sum0 += t[0, ii] * theta * t[0, ii]

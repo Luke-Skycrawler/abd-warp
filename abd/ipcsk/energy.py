@@ -7,7 +7,7 @@ from psd.hl import signed_distance
 from ccd import verify_root_pt, verify_root_ee
 
 @wp.kernel
-def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
+def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = scalar)):
     i = wp.tid()
     ijee = ee_list[i]
     ea0, ea1, eb0, eb1 = fetch_ee_xk(ijee, bodies)
@@ -22,7 +22,7 @@ def ipc_energy_ee(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
         # do nothing. Caught by point-triangle distance instead 
 
 @wp.kernel
-def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
+def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = scalar)):
     i = wp.tid()
     ip = vg_list[i]
     I = ip[0]
@@ -34,7 +34,7 @@ def ipc_energy_vg(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = ve
     wp.atomic_add(E, 0, barrier(d * d))
 
 @wp.kernel
-def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = float)):
+def ipc_energy_pt(ee_list: wp.array(dtype = vec5i), pt_list: wp.array(dtype = vec5i), vg_list: wp.array(dtype = wp.vec2i), bodies: wp.array(dtype = Any), E: wp.array(dtype = scalar)):
     i = wp.tid()
     p, t0, t1, t2 = fetch_pt_xk(pt_list[i], bodies)
 

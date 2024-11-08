@@ -1,37 +1,37 @@
 import warp as wp
 import numpy as np
-
+from const_params import scalar, vec3, mat33, vec2, vec4
 x_error = wp.constant(1e-10)
 
 @wp.func
-def evaluate(coef: wp.vec4, x: float):
+def evaluate(coef: vec4, x: scalar):
     return coef[0] + x * (coef[1] + x * (coef[2] + x * coef[3]))
 
 @wp.func
-def multi_sign(a: float, b: float) -> float:
+def multi_sign(a: scalar, b: scalar) -> scalar:
     ret = a
     if b < 0.0:
         ret = -a
     return ret
 
 @wp.func
-def is_different_sign(y0: float, yr: float):
+def is_different_sign(y0: scalar, yr: scalar):
     return y0 * yr < 0.0
 
 @wp.func
-def deflate(coef: wp.vec4, root: float):
-    defpoly = wp.vec3(0.0)
+def deflate(coef: vec4, root: scalar):
+    defpoly = vec3(0.0)
     defpoly[2] = coef[3]
     for i in range(2, 0, -1):
         defpoly[i - 1] = coef[i] + root * defpoly[i]
     return defpoly
 
 @wp.func
-def find_closed(coef: wp.vec4, deriv: wp.vec4, x0: float, x1: float, y0: float, y1: float):
+def find_closed(coef: vec4, deriv: vec4, x0: scalar, x1: scalar, y0: scalar, y1: scalar):
     xr = (x0 + x1) / 2.0
     yr = evaluate(coef, xr)
-    xb0 = float(x0)
-    xb1 = float(x1)
+    xb0 = scalar(x0)
+    xb1 = scalar(x1)
     if x1 - x0 <= x_error * 2.0:
         pass
     else:
@@ -61,9 +61,9 @@ def find_closed(coef: wp.vec4, deriv: wp.vec4, x0: float, x1: float, y0: float, 
 
     return xr
 @wp.func
-def quadratic_roots(coef: wp.vec3, x0: float, x1: float):
+def quadratic_roots(coef: vec3, x0: scalar, x1: scalar):
 
-    roots = wp.vec2(0.0)
+    roots = vec2(0.0)
     c = coef[0]
     b = coef[1]
     a = coef[2]
@@ -93,8 +93,8 @@ def quadratic_roots(coef: wp.vec3, x0: float, x1: float):
     return ret, roots
 
 @wp.func
-def cubic_roots(coef: wp.vec4, x0: float, x1: float):
-    roots = wp.vec3(0.0, 0.0, 0.0)  
+def cubic_roots(coef: vec4, x0: scalar, x1: scalar):
+    roots = vec3(0.0, 0.0, 0.0)  
     y0 = evaluate(coef, x0)
     y1 = evaluate(coef, x1)
 
@@ -102,7 +102,7 @@ def cubic_roots(coef: wp.vec4, x0: float, x1: float):
     a = coef[3] * 3.0
     b_2 = coef[2]  # b / 2
     c = coef[1]
-    deriv = wp.vec4(c, 2.0 * b_2, a, 0.0)
+    deriv = vec4(c, 2.0 * b_2, a, 0.0)
     delta_4 = b_2 * b_2 - a * c
     ret = int(0)
     while True:
@@ -193,29 +193,29 @@ def cubic_roots(coef: wp.vec4, x0: float, x1: float):
     return ret, roots
 
 @wp.kernel
-def test(coeffs:wp.array(dtype = wp.vec4), _roots: wp.array(dtype = wp.vec3), _ret: wp.array(dtype = int), rand_init: int):
+def test(coeffs:wp.array(dtype = vec4), _roots: wp.array(dtype = vec3), _ret: wp.array(dtype = int), rand_init: int):
     i = wp.tid()
     state = wp.rand_init(100 * i)
     if rand_init:
-        coeffs[i] = wp.vec4(wp.randf(state), wp.randf(state), wp.randf(state), wp.randf(state))
+        coeffs[i] = vec4(wp.randf(state), wp.randf(state), wp.randf(state), wp.randf(state))
     ret, roots = cubic_roots(coeffs[i], -5.0, 5.0)
 
     _ret[i] = ret
     _roots[i] = roots
 
 @wp.kernel
-def test_quadratic(coeffs:wp.array(dtype = wp.vec3), _roots: wp.array(dtype = wp.vec2), _ret: wp.array(dtype = int), rand_init: int):
+def test_quadratic(coeffs:wp.array(dtype = vec3), _roots: wp.array(dtype = vec2), _ret: wp.array(dtype = int), rand_init: int):
     i = wp.tid()
     if rand_init:
         state = wp.rand_init(100 * i)
-        coeffs[i] = wp.vec3(wp.randf(state), wp.randf(state), wp.randf(state))
+        coeffs[i] = vec3(wp.randf(state), wp.randf(state), wp.randf(state))
     ret, roots = quadratic_roots(coeffs[i], -5.0, 5.0)
 
     _ret[i] = ret
     _roots[i] = roots
 
 @wp.kernel
-def verify_roots(coeffs: wp.array(dtype = wp.vec4), roots: wp.array(dtype = wp.vec3), n_roots: wp.array(dtype = int), err: wp.array2d(dtype = float)):
+def verify_roots(coeffs: wp.array(dtype = vec4), roots: wp.array(dtype = vec3), n_roots: wp.array(dtype = int), err: wp.array2d(dtype = scalar)):
     i = wp.tid()
     coef = coeffs[i]
     for j in range(n_roots[i]):
@@ -269,7 +269,7 @@ def construct_2_root_polynomial(n_test, bound):
     return test_coeffs, roots
 
 @wp.kernel
-def test_deflate(coef: wp.array(dtype = wp.vec4), roots: wp.array(dtype = wp.vec3), ret: wp.array(dtype = int), qroots: wp.array(dtype = wp.vec2)):
+def test_deflate(coef: wp.array(dtype = vec4), roots: wp.array(dtype = vec3), ret: wp.array(dtype = int), qroots: wp.array(dtype = vec2)):
     i = wp.tid()
 
 
@@ -285,10 +285,10 @@ def test_deflate(coef: wp.array(dtype = wp.vec4), roots: wp.array(dtype = wp.vec
 if __name__ == "__main__":
     wp.init()
     n_test = 9
-    roots = wp.zeros((n_test, ), dtype = wp.vec3)
+    roots = wp.zeros((n_test, ), dtype = vec3)
     ret = wp.zeros(n_test, dtype = int)
-    coeffs = wp.zeros(n_test, dtype = wp.vec4)
-    err = wp.zeros((n_test, 3), dtype = float)
+    coeffs = wp.zeros(n_test, dtype = vec4)
+    err = wp.zeros((n_test, 3), dtype = scalar)
 
 
     # constructed polynomials
@@ -301,8 +301,8 @@ if __name__ == "__main__":
 
     wp.launch(test, n_test, inputs = [coeffs ,roots, ret, 0])
 
-    qroots = wp.zeros((n_test, ), dtype = wp.vec2)
-    qcoeffs = wp.zeros(n_test, dtype = wp.vec3)
+    qroots = wp.zeros((n_test, ), dtype = vec2)
+    qcoeffs = wp.zeros(n_test, dtype = vec3)
     qcoeffs.assign(qtest_coeffs)
     
     # test quadratic, passed

@@ -12,14 +12,14 @@ if __name__ == "__main__":
         [0.2668, 0.6211, 0.5291]
     ])
 
-    dcdx_simple = wp.zeros((3, 4), dtype = float)
-    x = wp.from_numpy(arr, dtype = wp.vec3, shape = (4))
-    dcdx_delta = wp.zeros((3, 4), dtype = wp.mat33)
-    ret = wp.zeros((4, 4), dtype = wp.mat33)
-    d2Psi = wp.zeros((3, 3), dtype = wp.mat33)
-    q = wp.zeros((9,3), dtype = wp.vec3)
-    lam = wp.zeros((1, 9), dtype = float)
-    l = wp.zeros((4, 5), dtype = wp.vec3)
+    dcdx_simple = wp.zeros((3, 4), dtype = scalar)
+    x = wp.from_numpy(arr, dtype = vec3, shape = (4))
+    dcdx_delta = wp.zeros((3, 4), dtype = mat33)
+    ret = wp.zeros((4, 4), dtype = mat33)
+    d2Psi = wp.zeros((3, 3), dtype = mat33)
+    q = wp.zeros((9,3), dtype = vec3)
+    lam = wp.zeros((1, 9), dtype = scalar)
+    l = wp.zeros((4, 5), dtype = vec3)
 
     def to_numpy(__d2Psi):
         _d2Psi = __d2Psi.numpy()
@@ -67,8 +67,8 @@ if __name__ == "__main__":
         # print(dc_s.T @ d2Psidc1 @ dc_s)
         # print(dc_s.T @ d2Psidc1 @ dc_s - _ret)
 
-        t = wp.array(dtype = float, shape = (3, 5))
-        a = wp.array(dtype = wp.vec3, shape = (3, 4))
+        t = wp.array(dtype = scalar, shape = (3, 5))
+        a = wp.array(dtype = vec3, shape = (3, 4))
         wp.launch(dcdx_delta_kernel, 1, inputs = [q, lam, x, t, ret, a])
 
         _ret = to_numpy(ret)
